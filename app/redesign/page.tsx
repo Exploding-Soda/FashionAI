@@ -26,6 +26,7 @@ import { Slider } from "@/components/ui/slider"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { CollapsibleHeader } from "@/components/collapsible-header"
+import { Label } from "@/components/ui/label"
 import Image from "next/image"
 
 export default function RedesignPage() {
@@ -129,6 +130,30 @@ export default function RedesignPage() {
                   onChange={handleImageUpload}
                   className="hidden"
                 />
+              </CardContent>
+            </Card>
+
+            {/* Prompt Input Section */}
+            <Card className="border-border/50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Wand2 className="size-5" />
+                  Redesign Prompt
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label htmlFor="prompt" className="text-sm font-medium">
+                    Describe your redesign vision
+                  </Label>
+                  <Textarea
+                    id="prompt"
+                    placeholder="e.g., Change the color to navy blue, add a floral pattern, make it more elegant..."
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    className="min-h-[120px] resize-none"
+                  />
+                </div>
               </CardContent>
             </Card>
 

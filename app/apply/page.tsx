@@ -97,12 +97,6 @@ export default function ApplyPage() {
     { value: "accent", label: "Accent Placement", desc: "Strategic accent positioning" },
   ]
 
-  const presetPatterns = [
-    { id: 1, name: "Floral", preview: "/placeholder.svg?height=100&width=100" },
-    { id: 2, name: "Geometric", preview: "/placeholder.svg?height=100&width=100" },
-    { id: 3, name: "Abstract", preview: "/placeholder.svg?height=100&width=100" },
-    { id: 4, name: "Stripes", preview: "/placeholder.svg?height=100&width=100" },
-  ]
 
   return (
     <div className="min-h-screen bg-background">
@@ -189,29 +183,6 @@ export default function ApplyPage() {
                   className="hidden"
                 />
 
-                {/* Preset Patterns */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Or choose preset:</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {presetPatterns.map((pattern) => (
-                      <div
-                        key={pattern.id}
-                        className="relative aspect-square rounded-lg overflow-hidden border border-border cursor-pointer hover:border-secondary/50 transition-colors"
-                        onClick={() => setPatternImage(pattern.preview)}
-                      >
-                        <Image
-                          src={pattern.preview || "/placeholder.svg"}
-                          alt={pattern.name}
-                          fill
-                          className="object-cover"
-                        />
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                          <p className="text-white text-xs font-medium">{pattern.name}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </CardContent>
             </Card>
 
