@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .routers.v1 import router as v1_router
+from .routers.workflow_endpoints import router as workflow_router
 from .services.logger import get_main_logger
 
 
@@ -20,6 +21,7 @@ def create_app() -> FastAPI:
         expose_headers=["*"],
     )
     app.include_router(v1_router, prefix="/v1")
+    app.include_router(workflow_router, prefix="/v1")
     
     logger.info("服务器配置完成")
     return app
