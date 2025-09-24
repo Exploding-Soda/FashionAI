@@ -22,7 +22,6 @@ import {
   ChevronRight,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,11 +30,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
+import { useAuth } from "@/contexts/auth-context"
 
 export function Navigation() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(true)
   const pathname = usePathname()
+  const { user, isAuthenticated, logout } = useAuth()
 
   // 检查是否在首页
   const isHomePage = pathname === "/" || pathname === ""
@@ -159,13 +160,16 @@ export function Navigation() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="w-full justify-center p-3">
-                  <Avatar className="size-8">
-                    <AvatarImage src="/placeholder.svg" />
-                    <AvatarFallback>JD</AvatarFallback>
-                  </Avatar>
+                  <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <User className="size-4 text-primary" />
+                  </div>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
+                <div className="px-2 py-1.5 text-sm font-medium">
+                  {user?.username || "User"}
+                </div>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem>
                   <User className="size-4 mr-2" />
                   Profile
@@ -175,7 +179,7 @@ export function Navigation() {
                   Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={logout}>
                   <LogOut className="size-4 mr-2" />
                   Sign out
                 </DropdownMenuItem>
@@ -185,18 +189,20 @@ export function Navigation() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="w-full justify-start gap-3 p-3">
-                  <Avatar className="size-8">
-                    <AvatarImage src="/placeholder.svg" />
-                    <AvatarFallback>JD</AvatarFallback>
-                  </Avatar>
+                  <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <User className="size-4 text-primary" />
+                  </div>
                   <div className="flex-1 text-left">
-                    <p className="font-medium text-sm">John Designer</p>
-                    <p className="text-xs text-muted-foreground">john@fashion.ai</p>
+                    <p className="font-medium text-sm">{user?.username || "User"}</p>
                   </div>
                   <ChevronDown className="size-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
+                <div className="px-2 py-1.5 text-sm font-medium">
+                  {user?.username || "User"}
+                </div>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem>
                   <User className="size-4 mr-2" />
                   Profile
@@ -206,7 +212,7 @@ export function Navigation() {
                   Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={logout}>
                   <LogOut className="size-4 mr-2" />
                   Sign out
                 </DropdownMenuItem>
@@ -283,15 +289,21 @@ export function Navigation() {
 
           <div className="p-4 border-t border-border">
             <div className="flex items-center gap-3 px-3 py-2">
-              <Avatar className="size-8">
-                <AvatarImage src="/placeholder.svg" />
-                <AvatarFallback>JD</AvatarFallback>
-              </Avatar>
+              <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <User className="size-4 text-primary" />
+              </div>
               <div>
-                <p className="font-medium text-sm">John Designer</p>
-                <p className="text-xs text-muted-foreground">john@fashion.ai</p>
+                <p className="font-medium text-sm">{user?.username || "User"}</p>
               </div>
             </div>
+            <Button 
+              variant="outline" 
+              className="w-full mt-2" 
+              onClick={logout}
+            >
+              <LogOut className="size-4 mr-2" />
+              Sign out
+            </Button>
           </div>
         </motion.nav>
         </div>

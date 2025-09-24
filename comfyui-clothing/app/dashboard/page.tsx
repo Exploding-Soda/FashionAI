@@ -1,351 +1,221 @@
 "use client"
 
-import { useState } from "react"
-import { motion } from "framer-motion"
-import {
-  BarChart3,
-  TrendingUp,
-  Users,
-  Zap,
-  Clock,
-  ArrowRight,
-  Plus,
-  FileText,
-  Palette,
-  Scissors,
-  Shirt,
-  Wand2,
-  Activity,
-  Settings,
-} from "lucide-react"
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { CollapsibleHeader } from "@/components/collapsible-header"
-import Link from "next/link"
+import { 
+  Scissors, 
+  Palette, 
+  Shirt, 
+  Sparkles, 
+  Zap, 
+  Download,
+  ArrowRight,
+  User,
+  LogOut
+} from "lucide-react"
 
 export default function DashboardPage() {
-  const [activeModule, setActiveModule] = useState("overview")
+  const { user, isAuthenticated, logout } = useAuth()
+  const router = useRouter()
 
-  const modules = [
-    {
-      id: "redesign",
-      name: "Targeted Redesign",
-      description: "AI-powered garment modification",
-      icon: Wand2,
-      color: "bg-primary",
-      href: "/redesign",
-      stats: { processed: 156, success: 94 },
-    },
-    {
-      id: "extract",
-      name: "Pattern Extraction",
-      description: "Extract patterns from clothing",
-      icon: Scissors,
-      color: "bg-primary",
-      href: "/extract",
-      stats: { processed: 89, success: 97 },
-    },
-    {
-      id: "apply",
-      name: "Pattern Application",
-      description: "Apply patterns to garments",
-      icon: Palette,
-      color: "bg-secondary",
-      href: "/apply",
-      stats: { processed: 203, success: 91 },
-    },
-    {
-      id: "tryon",
-      name: "Virtual Try-On",
-      description: "AI virtual fitting technology",
-      icon: Shirt,
-      color: "bg-chart-4",
-      href: "/try-on",
-      stats: { processed: 342, success: 89 },
-    },
-    {
-      id: "cad",
-      name: "CAD Integration",
-      description: "Generate technical drawings",
-      icon: FileText,
-      color: "bg-accent",
-      href: "/cad",
-      stats: { processed: 67, success: 96 },
-    },
-  ]
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.push("/")
+    }
+  }, [isAuthenticated, router])
 
-  const recentProjects = [
-    {
-      id: 1,
-      name: "Summer Collection Redesign",
-      module: "Targeted Redesign",
-      status: "completed",
-      time: "2 hours ago",
-    },
-    {
-      id: 2,
-      name: "Floral Pattern Extraction",
-      module: "Pattern Extraction",
-      status: "processing",
-      time: "5 minutes ago",
-    },
-    { id: 3, name: "Dress Virtual Try-On", module: "Virtual Try-On", status: "completed", time: "1 hour ago" },
-    { id: 4, name: "Technical Drawing Export", module: "CAD Integration", status: "completed", time: "3 hours ago" },
-    { id: 5, name: "Pattern Application Test", module: "Pattern Application", status: "failed", time: "4 hours ago" },
-  ]
+  if (!isAuthenticated) {
+    return null // or show loading state
+  }
 
-  const quickStats = [
-    { label: "Total Projects", value: "1,247", change: "+12%", icon: BarChart3 },
-    { label: "Success Rate", value: "92.4%", change: "+2.1%", icon: TrendingUp },
-    { label: "Active Users", value: "89", change: "+5", icon: Users },
-    { label: "Processing Time", value: "2.3s", change: "-0.4s", icon: Zap },
+  const features = [
+    {
+      title: "Pattern Extraction",
+      description: "Extract intricate patterns from clothing images with AI precision.",
+      icon: <Scissors className="size-6" />,
+      path: "/extract",
+      color: "bg-blue-500/10 text-blue-600"
+    },
+    {
+      title: "Pattern Application", 
+      description: "Apply extracted patterns to new garments seamlessly.",
+      icon: <Palette className="size-6" />,
+      path: "/apply",
+      color: "bg-purple-500/10 text-purple-600"
+    },
+    {
+      title: "Virtual Try-On",
+      description: "See how garments look on models with realistic AI fitting.",
+      icon: <Shirt className="size-6" />,
+      path: "/try-on",
+      color: "bg-green-500/10 text-green-600"
+    },
+    {
+      title: "Material & Style",
+      description: "Transform fabric textures and styles while maintaining structure.",
+      icon: <Sparkles className="size-6" />,
+      path: "/material",
+      color: "bg-orange-500/10 text-orange-600"
+    },
+    {
+      title: "Smart Editing",
+      description: "Edit clothing designs with brush tools and text prompts.",
+      icon: <Zap className="size-6" />,
+      path: "/edit",
+      color: "bg-yellow-500/10 text-yellow-600"
+    },
+    {
+      title: "Export Results",
+      description: "Get high-quality fashion designs in seconds.",
+      icon: <Download className="size-6" />,
+      path: "/results",
+      color: "bg-red-500/10 text-red-600"
+    }
   ]
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-background to-muted/20">
       {/* Header */}
-      <CollapsibleHeader
-        title="AI Fashion Studio"
-        description="Comprehensive fashion design platform"
-        icon={<Activity className="size-4 text-primary-foreground" />}
-        actions={
-          <>
-            <Button variant="outline" size="sm" className="gap-2 bg-transparent">
-              <Settings className="size-4" />
-              Settings
-            </Button>
-            <Button size="sm" className="gap-2">
-              <Plus className="size-4" />
-              New Project
-            </Button>
-          </>
-        }
-      />
-
-      <div className="container mx-auto px-6 py-8">
-        {/* Quick Stats */}
-        <div className="grid md:grid-cols-4 gap-6 mb-8">
-          {quickStats.map((stat, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.1 }}
+      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container max-w-7xl mx-auto flex h-16 items-center justify-between">
+          <div className="flex items-center gap-2 font-bold">
+            <div className="size-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-primary-foreground">
+              <Scissors className="size-4" />
+            </div>
+            <span>FashionAI Dashboard</span>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <span className="text-sm font-medium text-foreground">
+              Welcome, {user?.username}
+            </span>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={logout}
+              className="rounded-full"
             >
-              <Card className="border-border/50">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">{stat.label}</p>
-                      <p className="text-2xl font-bold">{stat.value}</p>
-                      <p className="text-xs text-primary">{stat.change}</p>
+              <LogOut className="size-4 mr-2" />
+              Logout
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="container max-w-7xl mx-auto py-8">
+        {/* Welcome Section */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">
+            Welcome back, {user?.username}!
+          </h1>
+          <p className="text-muted-foreground">
+            Start using AI-powered fashion design tools to create amazing works.
+          </p>
+        </div>
+
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <User className="size-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Tenant ID</p>
+                  <p className="text-2xl font-bold">{user?.tenant_id}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="size-12 rounded-full bg-green-500/10 flex items-center justify-center">
+                  <Sparkles className="size-6 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">AI Tools</p>
+                  <p className="text-2xl font-bold">6</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="size-12 rounded-full bg-blue-500/10 flex items-center justify-center">
+                  <Download className="size-6 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Processing Speed</p>
+                  <p className="text-2xl font-bold">2.3s</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* AI Tools Grid */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold mb-6">AI Design Tools</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {features.map((feature, index) => (
+              <Card key={index} className="group hover:shadow-lg transition-all duration-300 cursor-pointer">
+                <CardHeader className="pb-4">
+                  <div className="flex items-center gap-4">
+                    <div className={`size-12 rounded-full flex items-center justify-center ${feature.color}`}>
+                      {feature.icon}
                     </div>
-                    <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center">
-                      <stat.icon className="size-6 text-primary" />
+                    <div>
+                      <CardTitle className="text-lg">{feature.title}</CardTitle>
                     </div>
                   </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground mb-4">{feature.description}</p>
+                  <Button 
+                    className="w-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
+                    variant="outline"
+                    onClick={() => router.push(feature.path)}
+                  >
+                    Get Started
+                    <ArrowRight className="ml-2 size-4" />
+                  </Button>
                 </CardContent>
               </Card>
-            </motion.div>
-          ))}
-        </div>
-
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* AI Modules */}
-            <Card className="border-border/50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Zap className="size-5" />
-                  AI Fashion Modules
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid md:grid-cols-2 gap-4">
-                  {modules.map((module, i) => (
-                    <motion.div
-                      key={module.id}
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: i * 0.1 }}
-                    >
-                      <Link href={module.href}>
-                        <Card className="border-border/50 hover:border-primary/50 transition-all cursor-pointer group h-full">
-                          <CardContent className="p-6">
-                            <div className="flex items-start justify-between mb-4">
-                              <div
-                                className={`size-12 rounded-lg ${module.color} flex items-center justify-center group-hover:scale-110 transition-transform`}
-                              >
-                                <module.icon className="size-6 text-white" />
-                              </div>
-                              <ArrowRight className="size-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                            </div>
-                            <h3 className="font-semibold mb-2">{module.name}</h3>
-                            <p className="text-sm text-muted-foreground mb-4">{module.description}</p>
-                            <div className="flex justify-between text-xs text-muted-foreground">
-                              <span>{module.stats.processed} processed</span>
-                              <span>{module.stats.success}% success</span>
-                            </div>
-                            <Progress value={module.stats.success} className="mt-2" />
-                          </CardContent>
-                        </Card>
-                      </Link>
-                    </motion.div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Recent Activity */}
-            <Card className="border-border/50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="size-5" />
-                  Recent Projects
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {recentProjects.map((project, i) => (
-                    <motion.div
-                      key={project.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.1 }}
-                      className="flex items-center justify-between p-4 rounded-lg border border-border/50 hover:border-border/80 transition-colors"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div
-                          className={`size-2 rounded-full ${
-                            project.status === "completed"
-                              ? "bg-primary"
-                              : project.status === "processing"
-                                ? "bg-secondary animate-pulse"
-                                : "bg-destructive"
-                          }`}
-                        />
-                        <div>
-                          <p className="font-medium">{project.name}</p>
-                          <p className="text-sm text-muted-foreground">{project.module}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <Badge
-                          variant={
-                            project.status === "completed"
-                              ? "default"
-                              : project.status === "processing"
-                                ? "secondary"
-                                : "destructive"
-                          }
-                        >
-                          {project.status}
-                        </Badge>
-                        <p className="text-xs text-muted-foreground mt-1">{project.time}</p>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* System Status */}
-            <Card className="border-border/50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="size-5" />
-                  System Status
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">AI Models</span>
-                  <div className="flex items-center gap-2">
-                    <div className="size-2 rounded-full bg-primary animate-pulse" />
-                    <span className="text-sm text-primary">Online</span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Processing Queue</span>
-                  <span className="text-sm text-muted-foreground">3 jobs</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Storage Used</span>
-                  <span className="text-sm text-muted-foreground">2.4 GB</span>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>CPU Usage</span>
-                    <span>34%</span>
-                  </div>
-                  <Progress value={34} />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Memory Usage</span>
-                    <span>67%</span>
-                  </div>
-                  <Progress value={67} />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Quick Actions */}
-            <Card className="border-border/50">
-              <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Button variant="outline" className="w-full justify-start gap-2 bg-transparent">
-                  <Wand2 className="size-4" />
-                  Start Redesign
-                </Button>
-                <Button variant="outline" className="w-full justify-start gap-2 bg-transparent">
-                  <Scissors className="size-4" />
-                  Extract Pattern
-                </Button>
-                <Button variant="outline" className="w-full justify-start gap-2 bg-transparent">
-                  <Shirt className="size-4" />
-                  Virtual Try-On
-                </Button>
-                <Button variant="outline" className="w-full justify-start gap-2 bg-transparent">
-                  <FileText className="size-4" />
-                  Generate CAD
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Usage Analytics */}
-            <Card className="border-border/50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="size-5" />
-                  Usage This Week
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {modules.slice(0, 3).map((module, i) => (
-                    <div key={module.id} className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>{module.name}</span>
-                        <span>{Math.floor(Math.random() * 50) + 10} uses</span>
-                      </div>
-                      <Progress value={Math.floor(Math.random() * 80) + 20} />
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            ))}
           </div>
         </div>
-      </div>
+
+        {/* Recent Activity */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Activity</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/50">
+                <div className="size-10 rounded-full bg-green-500/10 flex items-center justify-center">
+                  <Sparkles className="size-5 text-green-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium">Welcome to FashionAI</p>
+                  <p className="text-sm text-muted-foreground">Start your AI design journey</p>
+                </div>
+                <Badge variant="secondary">New User</Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </main>
     </div>
   )
 }

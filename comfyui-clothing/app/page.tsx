@@ -28,14 +28,20 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useTheme } from "next-themes"
 import { useRouter } from "next/navigation"
+import { LoginModal } from "@/components/login-modal"
+import { RegisterModal } from "@/components/register-modal"
+import { useAuth } from "@/contexts/auth-context"
 
 export default function LandingPage() {
   const [isScrolled, setIsScrolled] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [activeDemo, setActiveDemo] = useState("extract")
+  const [showLoginModal, setShowLoginModal] = useState(false)
+  const [showRegisterModal, setShowRegisterModal] = useState(false)
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const router = useRouter()
+  const { user, isAuthenticated, logout } = useAuth()
 
   useEffect(() => {
     setMounted(true)
@@ -53,6 +59,32 @@ export default function LandingPage() {
 
   const toggleTheme = () => {
     setTheme(theme === "dark" ? "light" : "dark")
+  }
+
+  const handleLoginClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setShowLoginModal(true)
+  }
+
+  const handleStartCreating = (e: React.MouseEvent) => {
+    e.preventDefault()
+    if (isAuthenticated) {
+      // 已登录用户直接跳转到dashboard
+      router.push("/dashboard")
+    } else {
+      // 未登录用户显示登录弹窗
+      setShowLoginModal(true)
+    }
+  }
+
+  const handleSwitchToRegister = () => {
+    setShowLoginModal(false)
+    setShowRegisterModal(true)
+  }
+
+  const handleSwitchToLogin = () => {
+    setShowRegisterModal(false)
+    setShowLoginModal(true)
   }
 
   const container = {
@@ -187,18 +219,36 @@ export default function LandingPage() {
               {mounted && theme === "dark" ? <Sun className="size-[18px]" /> : <Moon className="size-[18px]" />}
               <span className="sr-only">Toggle theme</span>
             </Button>
-            <Link
-              href="/dashboard"
-              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Log in
-            </Link>
-            <Link href="/dashboard">
-              <Button className="rounded-full">
-                Try Free Demo
-                <ChevronRight className="ml-1 size-4" />
-              </Button>
-            </Link>
+            {isAuthenticated ? (
+              // 已登录用户显示用户信息和退出按钮
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-foreground">
+                  Welcome, {user?.username}
+                </span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={logout}
+                  className="rounded-full"
+                >
+                  Logout
+                </Button>
+              </div>
+            ) : (
+              // 未登录用户显示登录按钮
+              <>
+                <button
+                  onClick={handleLoginClick}
+                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Log in
+                </button>
+                <Button onClick={handleLoginClick} className="rounded-full">
+                  Try Free Demo
+                  <ChevronRight className="ml-1 size-4" />
+                </Button>
+              </>
+            )}
           </div>
           <div className="flex items-center gap-4 md:hidden">
             <Button variant="ghost" size="icon" onClick={toggleTheme} className="rounded-full">
@@ -232,15 +282,49 @@ export default function LandingPage() {
                 FAQ
               </Link>
               <div className="flex flex-col gap-2 pt-2 border-t">
-                <Link href="/dashboard" className="py-2 text-sm font-medium" onClick={() => setMobileMenuOpen(false)}>
-                  Log in
-                </Link>
-                <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
-                  <Button className="rounded-full">
-                    Try Free Demo
-                    <ChevronRight className="ml-1 size-4" />
-                  </Button>
-                </Link>
+                {isAuthenticated ? (
+                  // 已登录用户显示用户信息和退出按钮
+                  <>
+                    <div className="py-2">
+                      <span className="text-sm font-medium text-foreground">
+                        Welcome, {user?.username}
+                      </span>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      className="rounded-full" 
+                      onClick={() => {
+                        setMobileMenuOpen(false)
+                        logout()
+                      }}
+                    >
+                      Logout
+                    </Button>
+                  </>
+                ) : (
+                  // 未登录用户显示登录按钮
+                  <>
+                    <button 
+                      className="py-2 text-sm font-medium text-left" 
+                      onClick={() => {
+                        setMobileMenuOpen(false)
+                        setShowLoginModal(true)
+                      }}
+                    >
+                      Log in
+                    </button>
+                    <Button 
+                      className="rounded-full" 
+                      onClick={() => {
+                        setMobileMenuOpen(false)
+                        setShowLoginModal(true)
+                      }}
+                    >
+                      Try Free Demo
+                      <ChevronRight className="ml-1 size-4" />
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </motion.div>
@@ -269,12 +353,14 @@ export default function LandingPage() {
                 technology. Revolutionize your creative workflow in seconds, not hours.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link href="/dashboard">
-                  <Button size="lg" className="rounded-full h-12 px-8 text-base">
-                    Start Creating Now
-                    <ArrowRight className="ml-2 size-4" />
-                  </Button>
-                </Link>
+                <Button 
+                  size="lg" 
+                  className="rounded-full h-12 px-8 text-base"
+                  onClick={handleStartCreating}
+                >
+                  {isAuthenticated ? "Go to Dashboard" : "Start Creating Now"}
+                  <ArrowRight className="ml-2 size-4" />
+                </Button>
                 <Button size="lg" variant="outline" className="rounded-full h-12 px-8 text-base bg-transparent">
                   Watch Demo
                 </Button>
@@ -1197,12 +1283,15 @@ export default function LandingPage() {
                 seconds.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 mt-4">
-                <Link href="/dashboard">
-                  <Button size="lg" variant="secondary" className="rounded-full h-12 px-8 text-base">
-                    Start Free Trial
-                    <ArrowRight className="ml-2 size-4" />
-                  </Button>
-                </Link>
+                <Button 
+                  size="lg" 
+                  variant="secondary" 
+                  className="rounded-full h-12 px-8 text-base"
+                  onClick={handleLoginClick}
+                >
+                  Start Free Trial
+                  <ArrowRight className="ml-2 size-4" />
+                </Button>
                 <Button
                   size="lg"
                   variant="outline"
@@ -1382,6 +1471,20 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {/* Login Modal */}
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        onSwitchToRegister={handleSwitchToRegister}
+      />
+
+      {/* Register Modal */}
+      <RegisterModal
+        isOpen={showRegisterModal}
+        onClose={() => setShowRegisterModal(false)}
+        onSwitchToLogin={handleSwitchToLogin}
+      />
     </div>
   )
 }

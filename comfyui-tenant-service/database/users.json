@@ -1,0 +1,12 @@
+[
+  {
+    "id": 1,
+    "username": "eason",
+    "email": null,
+    "hashed_password": "$2b$12$kApcpE/NnYJAC1fN1cM66.rY6ZqkV/Vmcs2B3UN3t.lDebSMYm70a",
+    "tenant_id": 1,
+    "is_active": true,
+    "created_at": "2025-09-24T07:17:00.649119",
+    "last_login": null
+  }
+]

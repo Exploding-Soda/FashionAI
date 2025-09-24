@@ -5,6 +5,7 @@ import type { Metadata } from "next"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Navigation } from "@/components/navigation"
 import { MainWrapper } from "@/components/main-wrapper"
+import { AuthProvider } from "@/contexts/auth-context"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -24,8 +25,10 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
-          <Navigation />
-          <MainWrapper>{children}</MainWrapper>
+          <AuthProvider>
+            <Navigation />
+            <MainWrapper>{children}</MainWrapper>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

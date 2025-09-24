@@ -1,0 +1,11 @@
+[
+  {
+    "id": 1,
+    "name": "Default Tenant",
+    "api_key": "34c86d38-c6bc-4fc4-a918-daf153de0d01",
+    "is_active": true,
+    "created_at": "2025-09-24T07:17:00.394089",
+    "updated_at": "2025-09-24T07:17:00.394089",
+    "settings": "{}"
+  }
+]
