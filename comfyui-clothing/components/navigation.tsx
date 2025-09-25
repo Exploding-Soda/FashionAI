@@ -10,6 +10,7 @@ import {
   Scissors,
   Palette,
   Shirt,
+  Video,
   FileText,
   Settings,
   User,
@@ -78,10 +79,16 @@ export function Navigation() {
       badge: "F4",
     },
     {
+      name: "Video Generation",
+      href: "/video-generation",
+      icon: Video,
+      badge: "F5",
+    },
+    {
       name: "CAD Integration",
       href: "/cad",
       icon: FileText,
-      badge: "F5",
+      badge: "F9",
     },
   ]
 

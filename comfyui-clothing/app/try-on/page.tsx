@@ -12,14 +12,12 @@ import {
   Zap,
   ImageIcon,
   Users,
-  Play,
   ArrowRight,
   CheckCircle,
   Clock,
   AlertCircle,
   Eye,
   Camera,
-  Video,
   Shuffle,
   User,
 } from "lucide-react"
@@ -43,7 +41,6 @@ export default function TryOnPage() {
   const [progress, setProgress] = useState(0)
   const [processingStep, setProcessingStep] = useState("")
   const [selectedModel, setSelectedModel] = useState<number>(0)
-  const [generateVideo, setGenerateVideo] = useState(false)
   const modelInputRef = useRef<HTMLInputElement>(null)
   const garmentInputRef = useRef<HTMLInputElement>(null)
   const accessoryInputRef = useRef<HTMLInputElement>(null)
@@ -99,25 +96,17 @@ export default function TryOnPage() {
     setIsProcessing(true)
     setProgress(0)
 
-    const steps = generateVideo
-      ? [
-          "Analyzing model poses...",
-          "Processing garment fitting...",
-          "Generating try-on frames...",
-          "Creating video sequence...",
-          "Finalizing output...",
-        ]
-      : [
-          "Analyzing model structure...",
-          "Processing garment fitting...",
-          "Applying realistic shadows...",
-          "Generating final composition...",
-        ]
+    const steps = [
+      "Analyzing model structure...",
+      "Processing garment fitting...",
+      "Applying realistic shadows...",
+      "Generating final composition...",
+    ]
 
     for (let i = 0; i < steps.length; i++) {
       setProcessingStep(steps[i])
       setProgress(((i + 1) / steps.length) * 100)
-      await new Promise((resolve) => setTimeout(resolve, generateVideo ? 2000 : 1500))
+      await new Promise((resolve) => setTimeout(resolve, 1500))
     }
 
     setIsProcessing(false)
@@ -308,11 +297,6 @@ export default function TryOnPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">Generate Video</Label>
-                    <Switch checked={generateVideo} onCheckedChange={setGenerateVideo} />
-                  </div>
-
-                  <div className="flex items-center justify-between">
                     <Label className="text-sm font-medium">Realistic Shadows</Label>
                     <Switch defaultChecked />
                   </div>
@@ -336,12 +320,12 @@ export default function TryOnPage() {
                     {isProcessing ? (
                       <>
                         <Clock className="size-4 animate-spin" />
-                        {generateVideo ? "Generating..." : "Processing..."}
+                        Processing...
                       </>
                     ) : (
                       <>
-                        {generateVideo ? <Video className="size-4" /> : <Camera className="size-4" />}
-                        {generateVideo ? "Generate Video" : "Try On Garment"}
+                        <Camera className="size-4" />
+                        Try On Garment
                       </>
                     )}
                   </Button>
@@ -360,9 +344,7 @@ export default function TryOnPage() {
                     </div>
                     <Progress value={progress} className="w-full" />
                     <p className="text-xs text-muted-foreground">
-                      {generateVideo
-                        ? "Video generation may take longer"
-                        : `Processing time: ~${Math.ceil(((100 - progress) / 25) * 1.5)}s remaining`}
+                      Processing time: ~{Math.ceil(((100 - progress) / 25) * 1.5)}s remaining
                     </p>
                   </div>
                 </CardContent>
@@ -437,20 +419,16 @@ export default function TryOnPage() {
                             <div className="text-center space-y-4">
                               <div className="size-12 border-2 border-chart-4 border-t-transparent rounded-full animate-spin mx-auto" />
                               <p className="text-sm text-muted-foreground">
-                                {generateVideo ? "Generating video..." : "Creating try-on..."}
+                                Creating try-on...
                               </p>
                             </div>
                           </div>
                         ) : (
                           <div className="absolute inset-0 flex items-center justify-center">
                             <div className="text-center space-y-2">
-                              {generateVideo ? (
-                                <Video className="size-8 text-muted-foreground mx-auto" />
-                              ) : (
-                                <Shirt className="size-8 text-muted-foreground mx-auto" />
-                              )}
+                              <Shirt className="size-8 text-muted-foreground mx-auto" />
                               <p className="text-sm text-muted-foreground">
-                                {generateVideo ? "Try-on video will appear here" : "Try-on result will appear here"}
+                                Try-on result will appear here
                               </p>
                             </div>
                           </div>
@@ -535,9 +513,6 @@ export default function TryOnPage() {
                       </Button>
                       <Button size="sm" variant="ghost" className="size-8 p-0">
                         <Download className="size-3" />
-                      </Button>
-                      <Button size="sm" variant="ghost" className="size-8 p-0">
-                        <Play className="size-3" />
                       </Button>
                     </div>
                   </CardContent>

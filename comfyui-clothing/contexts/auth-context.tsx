@@ -32,8 +32,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [token, setToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
+  // 检查是否为开发调试模式
+  const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === 'true'
+
   // 从 localStorage 恢复认证状态
   useEffect(() => {
+    // 如果是开发模式，直接设置模拟用户
+    if (isDevMode) {
+      const mockUser: User = {
+        id: 1,
+        username: 'dev_user',
+        email: 'dev@example.com',
+        tenant_id: 1,
+        is_active: true
+      }
+      const mockToken = 'dev_token_' + Date.now()
+      
+      setUser(mockUser)
+      setToken(mockToken)
+      localStorage.setItem('auth_token', mockToken)
+      localStorage.setItem('auth_user', JSON.stringify(mockUser))
+      setIsLoading(false)
+      return
+    }
+
     const savedToken = localStorage.getItem('auth_token')
     const savedUser = localStorage.getItem('auth_user')
     
@@ -49,9 +71,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
     
     setIsLoading(false)
-  }, [])
+  }, [isDevMode])
 
   const login = async (credentials: LoginRequest): Promise<boolean> => {
+    // 如果是开发模式，直接返回成功
+    if (isDevMode) {
+      const mockUser: User = {
+        id: 1,
+        username: credentials.username || 'dev_user',
+        email: 'dev@example.com',
+        tenant_id: 1,
+        is_active: true
+      }
+      const mockToken = 'dev_token_' + Date.now()
+      
+      setUser(mockUser)
+      setToken(mockToken)
+      localStorage.setItem('auth_token', mockToken)
+      localStorage.setItem('auth_user', JSON.stringify(mockUser))
+      return true
+    }
+
     try {
       setIsLoading(true)
       const response = await apiClient.login(credentials)
@@ -74,6 +114,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   const register = async (userData: RegisterRequest): Promise<boolean> => {
+    // 如果是开发模式，直接返回成功
+    if (isDevMode) {
+      const mockUser: User = {
+        id: 1,
+        username: userData.username,
+        email: 'dev@example.com',
+        tenant_id: userData.tenant_id,
+        is_active: true
+      }
+      const mockToken = 'dev_token_' + Date.now()
+      
+      setUser(mockUser)
+      setToken(mockToken)
+      localStorage.setItem('auth_token', mockToken)
+      localStorage.setItem('auth_user', JSON.stringify(mockUser))
+      return true
+    }
+
     try {
       setIsLoading(true)
       const response = await apiClient.register(userData)

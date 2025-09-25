@@ -1,26 +1,21 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { 
-  Scissors, 
-  Palette, 
-  Shirt, 
-  Sparkles, 
-  Zap, 
-  Download,
-  ArrowRight,
   User,
-  LogOut
+  LogOut,
+  Search,
+  Send,
+  Activity
 } from "lucide-react"
 
 export default function DashboardPage() {
   const { user, isAuthenticated, logout } = useAuth()
   const router = useRouter()
+  const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -32,50 +27,6 @@ export default function DashboardPage() {
     return null // or show loading state
   }
 
-  const features = [
-    {
-      title: "Pattern Extraction",
-      description: "Extract intricate patterns from clothing images with AI precision.",
-      icon: <Scissors className="size-6" />,
-      path: "/extract",
-      color: "bg-blue-500/10 text-blue-600"
-    },
-    {
-      title: "Pattern Application", 
-      description: "Apply extracted patterns to new garments seamlessly.",
-      icon: <Palette className="size-6" />,
-      path: "/apply",
-      color: "bg-purple-500/10 text-purple-600"
-    },
-    {
-      title: "Virtual Try-On",
-      description: "See how garments look on models with realistic AI fitting.",
-      icon: <Shirt className="size-6" />,
-      path: "/try-on",
-      color: "bg-green-500/10 text-green-600"
-    },
-    {
-      title: "Material & Style",
-      description: "Transform fabric textures and styles while maintaining structure.",
-      icon: <Sparkles className="size-6" />,
-      path: "/material",
-      color: "bg-orange-500/10 text-orange-600"
-    },
-    {
-      title: "Smart Editing",
-      description: "Edit clothing designs with brush tools and text prompts.",
-      icon: <Zap className="size-6" />,
-      path: "/edit",
-      color: "bg-yellow-500/10 text-yellow-600"
-    },
-    {
-      title: "Export Results",
-      description: "Get high-quality fashion designs in seconds.",
-      icon: <Download className="size-6" />,
-      path: "/results",
-      color: "bg-red-500/10 text-red-600"
-    }
-  ]
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/20">
@@ -84,7 +35,7 @@ export default function DashboardPage() {
         <div className="container max-w-7xl mx-auto flex h-16 items-center justify-between">
           <div className="flex items-center gap-2 font-bold">
             <div className="size-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-primary-foreground">
-              <Scissors className="size-4" />
+              <Activity className="size-4" />
             </div>
             <span>FashionAI Dashboard</span>
           </div>
@@ -107,114 +58,37 @@ export default function DashboardPage() {
       </header>
 
       {/* Main Content */}
-      <main className="container max-w-7xl mx-auto py-8">
-        {/* Welcome Section */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">
-            Welcome back, {user?.username}!
-          </h1>
-          <p className="text-muted-foreground">
-            Start using AI-powered fashion design tools to create amazing works.
-          </p>
-        </div>
-
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <User className="size-6 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Tenant ID</p>
-                  <p className="text-2xl font-bold">{user?.tenant_id}</p>
-                </div>
+      <main className="container max-w-4xl mx-auto py-16">
+        {/* AI Chat Search */}
+        <div className="flex flex-col items-center justify-center min-h-[60vh]">
+          <div className="w-full max-w-2xl">
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Search className="size-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
               </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="size-12 rounded-full bg-green-500/10 flex items-center justify-center">
-                  <Sparkles className="size-6 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">AI Tools</p>
-                  <p className="text-2xl font-bold">6</p>
-                </div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Ask AI to help with your fashion design... (e.g., 'Create a vintage dress pattern' or 'Generate a modern suit design')"
+                className="w-full pl-12 pr-16 py-4 text-base border border-border rounded-xl bg-background/50 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all duration-200 placeholder:text-muted-foreground shadow-sm hover:shadow-md"
+              />
+              <div className="absolute inset-y-0 right-0 pr-2 flex items-center">
+                <Button 
+                  size="sm" 
+                  className="rounded-lg shadow-sm"
+                  disabled={!searchQuery.trim()}
+                >
+                  <Send className="size-4" />
+                </Button>
               </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="size-12 rounded-full bg-blue-500/10 flex items-center justify-center">
-                  <Download className="size-6 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Processing Speed</p>
-                  <p className="text-2xl font-bold">2.3s</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* AI Tools Grid */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold mb-6">AI Design Tools</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {features.map((feature, index) => (
-              <Card key={index} className="group hover:shadow-lg transition-all duration-300 cursor-pointer">
-                <CardHeader className="pb-4">
-                  <div className="flex items-center gap-4">
-                    <div className={`size-12 rounded-full flex items-center justify-center ${feature.color}`}>
-                      {feature.icon}
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">{feature.title}</CardTitle>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground mb-4">{feature.description}</p>
-                  <Button 
-                    className="w-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
-                    variant="outline"
-                    onClick={() => router.push(feature.path)}
-                  >
-                    Get Started
-                    <ArrowRight className="ml-2 size-4" />
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+            </div>
+            <p className="text-sm text-muted-foreground mt-4 text-center">
+              Describe what you want to create and let AI help you design amazing fashion pieces
+            </p>
           </div>
         </div>
 
-        {/* Recent Activity */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/50">
-                <div className="size-10 rounded-full bg-green-500/10 flex items-center justify-center">
-                  <Sparkles className="size-5 text-green-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium">Welcome to FashionAI</p>
-                  <p className="text-sm text-muted-foreground">Start your AI design journey</p>
-                </div>
-                <Badge variant="secondary">New User</Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </main>
     </div>
   )
