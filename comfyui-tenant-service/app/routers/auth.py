@@ -189,9 +189,17 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db = Depends(g
 async def get_current_user(token: str = Depends(oauth2_scheme), db = Depends(get_db)):
     logger = get_auth_logger()
     settings = get_settings()
-    payload = verify_token(token)
-    username = payload.get("sub")
-    tenant_id = payload.get("tenant_id")
+    
+    logger.info(f"收到认证请求，token: {token[:20]}..." if token else "No token provided")
+    
+    try:
+        payload = verify_token(token)
+        username = payload.get("sub")
+        tenant_id = payload.get("tenant_id")
+        logger.info(f"Token验证成功，用户: {username}, 租户: {tenant_id}")
+    except Exception as e:
+        logger.error(f"Token验证失败: {str(e)}")
+        raise
     
     if settings.is_database_storage():
         user = db.query(User).filter(User.username == username).first()

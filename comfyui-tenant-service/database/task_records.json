@@ -1,0 +1,77 @@
+[
+  {
+    "id": 1,
+    "tenant_task_id": "tenant_c9f502a4c0d14fc0",
+    "user_id": "eason",
+    "runninghub_task_id": "1971138951295746049",
+    "status": "PENDING",
+    "created_at": "2025-09-25T09:05:22.261100",
+    "completed_at": null,
+    "result_data": null,
+    "storage_paths": null,
+    "error_message": null
+  },
+  {
+    "id": 2,
+    "tenant_task_id": "tenant_347ff0f56a0b486e",
+    "user_id": "eason",
+    "runninghub_task_id": "1971141384008810497",
+    "status": "SUCCESS",
+    "created_at": "2025-09-25T09:15:02.344224",
+    "completed_at": "2025-09-25T09:15:40.349911",
+    "result_data": {
+      "taskId": "1971141384008810497",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_ablyr_1758791720.png",
+          "fileType": "png",
+          "taskCostTime": "25",
+          "nodeId": "32"
+        },
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00002_itdoj_1758791726.png",
+          "fileType": "png",
+          "taskCostTime": "25",
+          "nodeId": "33"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\eason\\20250925_171538.png",
+      "output\\eason\\20250925_171539.png"
+    ],
+    "error_message": null
+  },
+  {
+    "id": 3,
+    "tenant_task_id": "tenant_79b5a98b2c6f4695",
+    "user_id": "eason",
+    "runninghub_task_id": "1971144165352456193",
+    "task_type": "targeted_redesign",
+    "status": "SUCCESS",
+    "created_at": "2025-09-25T09:26:05.385943",
+    "completed_at": "2025-09-25T09:26:39.110263",
+    "result_data": {
+      "taskId": "1971144165352456193",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_pxizp_1758792384.png",
+          "fileType": "png",
+          "taskCostTime": "25",
+          "nodeId": "32"
+        },
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00002_qpeep_1758792391.png",
+          "fileType": "png",
+          "taskCostTime": "25",
+          "nodeId": "33"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\eason\\20250925_172638.png",
+      "output\\eason\\20250925_172638.png"
+    ],
+    "error_message": null
+  }
+]

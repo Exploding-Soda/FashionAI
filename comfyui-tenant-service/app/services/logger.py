@@ -50,3 +50,9 @@ def get_proxy_logger():
 
 def get_main_logger():
     return ServiceLogger("main")
+
+def get_task_record_logger():
+    return ServiceLogger("task_record")
+
+def get_image_storage_logger():
+    return ServiceLogger("image_storage")

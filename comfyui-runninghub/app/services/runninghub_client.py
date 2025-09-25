@@ -23,7 +23,22 @@ class RunninghubClient:
         resp = await self._client.post(url, files=form)
         resp.raise_for_status()
         data = resp.json()
-        return data.get("fileName") or data.get("data") or ""
+        
+        # 处理不同的响应格式
+        if isinstance(data, dict):
+            # 如果返回的是字典，提取fileName
+            if "fileName" in data:
+                return data["fileName"]
+            elif "data" in data and isinstance(data["data"], dict):
+                return data["data"].get("fileName", "")
+            elif "data" in data and isinstance(data["data"], str):
+                return data["data"]
+        
+        # 如果返回的是字符串，直接返回
+        if isinstance(data, str):
+            return data
+            
+        return ""
 
     async def create_task(self, webapp_id: str, node_info_list: list[dict]) -> str:
         url = f"{self.base_url}/task/openapi/ai-app/run"
@@ -44,10 +59,25 @@ class RunninghubClient:
         data = resp.json()
         self.logger.debug(f"响应数据: {data}")
         
-        task_id = data.get("taskId") or data.get("data") or ""
+        # 处理不同的响应格式
+        task_id = ""
+        
+        if isinstance(data, dict):
+            # 如果taskId是字典，提取其中的taskId字段
+            task_id_obj = data.get("taskId")
+            if isinstance(task_id_obj, dict):
+                task_id = task_id_obj.get("taskId", "")
+            elif isinstance(task_id_obj, str):
+                task_id = task_id_obj
+            else:
+                task_id = data.get("data", "")
+        elif isinstance(data, str):
+            task_id = data
+        
         if not task_id:
             self.logger.warning(f"未获取到任务ID，响应数据: {data}")
         
+        self.logger.debug(f"提取的任务ID: {task_id}")
         return task_id
 
     async def get_status(self, task_id: str) -> str:

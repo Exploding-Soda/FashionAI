@@ -2,7 +2,7 @@
 动态工作流端点生成器
 根据工作流定义自动创建端点
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
 from typing import Any, Dict
 from pydantic import BaseModel
 from ..services.runninghub_client import get_runninghub_client
@@ -103,3 +103,36 @@ async def get_workflow_info(workflow_name: str):
         }
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+@router.post("/complete_image_edit")
+async def complete_image_edit(
+    file: UploadFile = File(...),
+    fileType: str = Form(default="image"),
+    prompt: str = Form(...),
+    client = Depends(get_runninghub_client),
+    task_manager = Depends(get_task_manager),
+):
+    """
+    完整的图片编辑工作流
+    接受multipart/form-data格式的请求，包含图片文件和编辑提示词
+    """
+    logger = get_router_logger()
+    try:
+        logger.info(f"收到完整图片编辑请求: 文件={file.filename}, 类型={fileType}, 提示词={prompt}")
+        
+        # 获取完整图片编辑工作流
+        workflow = workflow_manager.get_workflow("complete_image_edit")
+        
+        # 执行完整的工作流
+        result = await workflow.execute_workflow(
+            file=file,
+            fileType=fileType,
+            prompt=prompt
+        )
+        
+        logger.info(f"完整图片编辑工作流执行成功: {result}")
+        return result
+        
+    except Exception as e:
+        logger.error(f"完整图片编辑工作流执行失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"图片编辑失败: {str(e)}")

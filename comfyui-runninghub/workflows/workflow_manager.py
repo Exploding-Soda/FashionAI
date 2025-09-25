@@ -48,6 +48,11 @@ class Workflow(ABC):
     def get_node_info_list(self, **kwargs) -> List[Dict[str, Any]]:
         """根据参数生成节点信息列表"""
         pass
+    
+    async def execute_workflow(self, **kwargs) -> Dict[str, Any]:
+        """执行工作流（可选，用于需要异步执行的工作流）"""
+        # 默认实现，子类可以重写
+        return {"message": "工作流执行完成"}
 
 class WorkflowManager:
     """工作流管理器"""
@@ -115,6 +120,22 @@ class WorkflowManager:
             "node_info_list": node_info_list,
             "workflow_name": workflow.name
         }
+    
+    async def execute_workflow_async(self, name: str, **kwargs) -> Dict[str, Any]:
+        """异步执行指定的工作流"""
+        workflow = self.get_workflow(name)
+        
+        # 检查工作流是否有自定义的异步执行方法
+        if hasattr(workflow, 'execute_workflow'):
+            return await workflow.execute_workflow(**kwargs)
+        else:
+            # 使用默认的同步执行方法
+            node_info_list = workflow.get_node_info_list(**kwargs)
+            return {
+                "webapp_id": workflow.webapp_id,
+                "node_info_list": node_info_list,
+                "workflow_name": workflow.name
+            }
     
     def get_workflow_input_model(self, name: str) -> Type[BaseModel]:
         """获取工作流的输入参数模型"""

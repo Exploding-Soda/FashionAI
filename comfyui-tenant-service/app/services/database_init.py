@@ -63,6 +63,7 @@ def init_json_storage():
     tenants_file = db_path / "tenants.json"
     users_file = db_path / "users.json"
     usage_file = db_path / "api_usage.json"
+    task_records_file = db_path / "task_records.json"
     
     if not tenants_file.exists():
         with open(tenants_file, 'w', encoding='utf-8') as f:
@@ -74,4 +75,8 @@ def init_json_storage():
     
     if not usage_file.exists():
         with open(usage_file, 'w', encoding='utf-8') as f:
+            json.dump([], f, ensure_ascii=False, indent=2)
+    
+    if not task_records_file.exists():
+        with open(task_records_file, 'w', encoding='utf-8') as f:
             json.dump([], f, ensure_ascii=False, indent=2)

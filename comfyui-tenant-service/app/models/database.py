@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.sql import func
 from datetime import datetime
 from ..services.config import get_settings
 from ..services.database_init import init_database
@@ -68,6 +69,22 @@ if Base is not None:
         endpoint = Column(String(100))
         request_count = Column(Integer, default=1)
         created_at = Column(DateTime, default=datetime.utcnow)
+    
+    class TenantTaskRecord(Base):
+        __tablename__ = "tenant_task_records"
+        
+        id = Column(Integer, primary_key=True, index=True)
+        tenant_task_id = Column(String(100), unique=True, index=True, nullable=False)
+        user_id = Column(String(100), nullable=False, index=True)
+        runninghub_task_id = Column(String(100), nullable=False, index=True)
+        task_type = Column(String(50), nullable=True, index=True)  # 任务类型：如 "targeted_redesign", "image_edit" 等
+        created_at = Column(DateTime(timezone=True), server_default=func.now())
+        completed_at = Column(DateTime(timezone=True), nullable=True)
+        status = Column(String(50), nullable=False, default="PENDING")
+        result_data = Column(Text, nullable=True)
+        storage_paths = Column(Text, nullable=True)
+        error_message = Column(Text, nullable=True)
+    
 
     # Create tables
     if engine is not None:
@@ -81,6 +98,9 @@ else:
         pass
     
     class APIUsage:
+        pass
+    
+    class TenantTaskRecord:
         pass
 
 def get_db():

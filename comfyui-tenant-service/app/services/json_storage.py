@@ -136,3 +136,75 @@ class JSONStorage:
         
         usage.append(usage_record)
         self._save_data("api_usage", usage)
+    
+    # Task record operations
+    def create_task_record(self, tenant_task_id: str, user_id: str, runninghub_task_id: str, task_type: str = None) -> Dict:
+        """Create a new task record"""
+        task_records = self._load_data("task_records")
+        
+        task_record = {
+            "id": len(task_records) + 1,
+            "tenant_task_id": tenant_task_id,
+            "user_id": user_id,
+            "runninghub_task_id": runninghub_task_id,
+            "task_type": task_type,
+            "status": "PENDING",
+            "created_at": datetime.utcnow().isoformat(),
+            "completed_at": None,
+            "result_data": None,
+            "storage_paths": None,
+            "error_message": None
+        }
+        
+        task_records.append(task_record)
+        self._save_data("task_records", task_records)
+        self.logger.info(f"Created task record: {tenant_task_id}")
+        return task_record
+    
+    def get_task_record_by_tenant_id(self, tenant_task_id: str) -> Optional[Dict]:
+        """Get task record by tenant task ID"""
+        task_records = self._load_data("task_records")
+        return next((t for t in task_records if t.get("tenant_task_id") == tenant_task_id), None)
+    
+    def update_task_success(self, tenant_task_id: str, result_data: Dict, storage_paths: List[str]) -> bool:
+        """Update task record to success status"""
+        task_records = self._load_data("task_records")
+        
+        for task_record in task_records:
+            if task_record.get("tenant_task_id") == tenant_task_id:
+                task_record["status"] = "SUCCESS"
+                task_record["completed_at"] = datetime.utcnow().isoformat()
+                task_record["result_data"] = result_data
+                task_record["storage_paths"] = storage_paths
+                break
+        else:
+            self.logger.error(f"Task record not found: {tenant_task_id}")
+            return False
+        
+        self._save_data("task_records", task_records)
+        self.logger.info(f"Updated task record to success: {tenant_task_id}")
+        return True
+    
+    def update_task_failed(self, tenant_task_id: str, error_message: str) -> bool:
+        """Update task record to failed status"""
+        task_records = self._load_data("task_records")
+        
+        for task_record in task_records:
+            if task_record.get("tenant_task_id") == tenant_task_id:
+                task_record["status"] = "FAILED"
+                task_record["completed_at"] = datetime.utcnow().isoformat()
+                task_record["error_message"] = error_message
+                break
+        else:
+            self.logger.error(f"Task record not found: {tenant_task_id}")
+            return False
+        
+        self._save_data("task_records", task_records)
+        self.logger.info(f"Updated task record to failed: {tenant_task_id}")
+        return True
+    
+    def get_user_tasks(self, user_id: str, limit: int = 50) -> List[Dict]:
+        """Get user's task records"""
+        task_records = self._load_data("task_records")
+        user_tasks = [t for t in task_records if t.get("user_id") == user_id]
+        return sorted(user_tasks, key=lambda x: x.get("created_at", ""), reverse=True)[:limit]

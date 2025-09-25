@@ -46,7 +46,7 @@ def create_app() -> FastAPI:
     # Include routers
     app.include_router(auth.router, prefix="/auth", tags=["authentication"])
     app.include_router(tenants.router, prefix="/tenants", tags=["tenants"])
-    app.include_router(proxy.router, prefix="/api", tags=["proxy"])
+    app.include_router(proxy.router, prefix="/proxy", tags=["proxy"])
     
     logger.info("多租户微服务配置完成")
     return app
