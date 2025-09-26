@@ -180,8 +180,10 @@ export class RedesignApiClient {
     if (data.storagePaths && Array.isArray(data.storagePaths)) {
       const localUrls = data.storagePaths.map((path: string) => {
         // 将本地路径转换为可访问的URL
-        const relativePath = path.replace(/^.*[\\\/]output[\\\/]/, "");
-        return `${this.baseUrl}/static/images/${relativePath.replace(
+        // 路径格式: output\\eason\\20250926_093357.png
+        // 需要提取: eason/20250926_093357.png
+        const relativePath = path.replace(/^output[\\\/]/, "");
+        return `${this.baseUrl}/proxy/static/images/${relativePath.replace(
           /\\/g,
           "/"
         )}`;

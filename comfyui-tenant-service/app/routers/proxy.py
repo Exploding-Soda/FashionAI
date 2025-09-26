@@ -497,11 +497,15 @@ async def serve_stored_image(file_path: str):
     logger = get_proxy_logger()
     
     try:
-        # 构建完整的文件路径
-        output_dir = Path("./output")
+        # 获取项目根目录（comfyui-tenant-service目录）
+        import os
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        output_dir = Path(project_root) / "output"
         full_path = output_dir / file_path
         
         logger.info(f"请求图片文件: {file_path}")
+        logger.info(f"项目根目录: {project_root}")
+        logger.info(f"output目录: {output_dir}")
         logger.info(f"完整路径: {full_path}")
         logger.info(f"路径是否存在: {full_path.exists()}")
         

@@ -73,5 +73,158 @@
       "output\\eason\\20250925_172638.png"
     ],
     "error_message": null
+  },
+  {
+    "id": 4,
+    "tenant_task_id": "tenant_c854dbe92a3c4d57",
+    "user_id": "eason",
+    "runninghub_task_id": "1971383499477434370",
+    "task_type": "targeted_redesign",
+    "status": "SUCCESS",
+    "created_at": "2025-09-26T01:17:07.545348",
+    "completed_at": "2025-09-26T01:17:34.111854",
+    "result_data": {
+      "taskId": "1971383499477434370",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00002_pmhxi_1758849445.png",
+          "fileType": "png",
+          "taskCostTime": "19",
+          "nodeId": "33"
+        },
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_ngrqo_1758849440.png",
+          "fileType": "png",
+          "taskCostTime": "19",
+          "nodeId": "32"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\eason\\20250926_091733.png",
+      "output\\eason\\20250926_091733.png"
+    ],
+    "error_message": null
+  },
+  {
+    "id": 5,
+    "tenant_task_id": "tenant_7b46c2497c4f4b08",
+    "user_id": "eason",
+    "runninghub_task_id": "1971386120762245121",
+    "task_type": "targeted_redesign",
+    "status": "SUCCESS",
+    "created_at": "2025-09-26T01:27:32.505176",
+    "completed_at": "2025-09-26T01:28:15.300152",
+    "result_data": {
+      "taskId": "1971386120762245121",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00002_eblas_1758850080.png",
+          "fileType": "png",
+          "taskCostTime": "29",
+          "nodeId": "33"
+        },
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_pgrxc_1758850077.png",
+          "fileType": "png",
+          "taskCostTime": "29",
+          "nodeId": "32"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\eason\\20250926_092813.png",
+      "output\\eason\\20250926_092814.png"
+    ],
+    "error_message": null
+  },
+  {
+    "id": 6,
+    "tenant_task_id": "tenant_77d9bc4ff982449d",
+    "user_id": "eason",
+    "runninghub_task_id": "1971387596108677121",
+    "task_type": "targeted_redesign",
+    "status": "SUCCESS",
+    "created_at": "2025-09-26T01:33:24.246336",
+    "completed_at": "2025-09-26T01:33:58.799893",
+    "result_data": {
+      "taskId": "1971387596108677121",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_frkpo_1758850421.png",
+          "fileType": "png",
+          "taskCostTime": "25",
+          "nodeId": "32"
+        },
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00002_mozba_1758850427.png",
+          "fileType": "png",
+          "taskCostTime": "25",
+          "nodeId": "33"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\eason\\20250926_093357.png",
+      "output\\eason\\20250926_093358.png"
+    ],
+    "error_message": null
+  },
+  {
+    "id": 7,
+    "tenant_task_id": "tenant_0519b77ed8fb4216",
+    "user_id": "eason",
+    "runninghub_task_id": "1971389572032708610",
+    "task_type": "targeted_redesign",
+    "status": "SUCCESS",
+    "created_at": "2025-09-26T01:41:15.335492",
+    "completed_at": "2025-09-26T01:42:03.419336",
+    "result_data": {
+      "taskId": "1971389572032708610",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_lrrqu_1758850907.png",
+          "fileType": "png",
+          "taskCostTime": "39",
+          "nodeId": "32"
+        },
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00002_trczo_1758850913.png",
+          "fileType": "png",
+          "taskCostTime": "39",
+          "nodeId": "33"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\eason\\20250926_094202.png",
+      "output\\eason\\20250926_094202.png"
+    ],
+    "error_message": null
+  },
+  {
+    "id": 8,
+    "tenant_task_id": "tenant_b6c474f9fbd5415a",
+    "user_id": "eason",
+    "runninghub_task_id": "1971390690938798081",
+    "task_type": "targeted_redesign",
+    "status": "SUCCESS",
+    "created_at": "2025-09-26T01:45:42.112931",
+    "completed_at": "2025-09-26T01:46:01.686313",
+    "result_data": {
+      "taskId": "1971390690938798081",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00003_pfqof_1758851152.png",
+          "fileType": "png",
+          "taskCostTime": "15",
+          "nodeId": "32"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\eason\\20250926_094601.png"
+    ],
+    "error_message": null
   }
 ]
