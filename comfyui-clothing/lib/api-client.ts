@@ -1,9 +1,8 @@
 /**
- * API 客户端 - 与 comfyui-tenant-service 通信
+ * API 客户端 - 通过 Next.js API 路由与 comfyui-tenant-service 通信
  */
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_TENANT_API_URL || "http://localhost:8081";
+const API_BASE_URL = "/api"; // 使用 Next.js API 路由
 
 export interface LoginRequest {
   username: string;
@@ -85,7 +84,7 @@ class ApiClient {
     formData.append("username", credentials.username);
     formData.append("password", credentials.password);
 
-    return this.request<LoginResponse>("/auth/token", {
+    return this.request<LoginResponse>("/auth/login", {
       method: "POST",
       body: formData,
       headers: {
