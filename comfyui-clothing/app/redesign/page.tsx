@@ -32,7 +32,7 @@ import { Progress } from "@/components/ui/progress"
 import { CollapsibleHeader } from "@/components/collapsible-header"
 import { Label } from "@/components/ui/label"
 import NextImage from "next/image"
-import { redesignApiClient, type RedesignResponse, type TaskStatusResponse } from "@/lib/redesign-api-client"
+import { redesignApiClient, type RedesignResponse, type TaskStatusResponse, type TaskHistoryItem } from "@/lib/redesign-api-client"
 import { useAuth } from "@/contexts/auth-context"
 import { useRouter } from "next/navigation"
 
@@ -48,6 +48,14 @@ export default function RedesignPage() {
   const [taskId, setTaskId] = useState<string | null>(null)
   const [resultImage, setResultImage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [taskHistory, setTaskHistory] = useState<TaskHistoryItem[]>([])
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+  const [selectedImage, setSelectedImage] = useState<string | null>(null)
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [hasMoreHistory, setHasMoreHistory] = useState(false)
+  const [hasDrawings, setHasDrawings] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Redirect to login if not authenticated
@@ -56,6 +64,99 @@ export default function RedesignPage() {
       router.push('/')
     }
   }, [isAuthenticated, isLoading, router])
+
+  // Load task history on component mount
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadTaskHistory()
+    }
+  }, [isAuthenticated])
+
+  const loadTaskHistory = async (page: number = 1, append: boolean = false) => {
+    setIsLoadingHistory(true)
+    try {
+      const history = await redesignApiClient.getTaskHistory(page)
+      if (append) {
+        setTaskHistory(prev => [...prev, ...history])
+      } else {
+        setTaskHistory(history)
+      }
+      setCurrentPage(page)
+      setHasMoreHistory(history.length === 20) // 如果返回20条记录，可能还有更多
+    } catch (error) {
+      console.error('Failed to load task history:', error)
+    } finally {
+      setIsLoadingHistory(false)
+    }
+  }
+
+  const loadMoreHistory = () => {
+    if (!isLoadingHistory && hasMoreHistory) {
+      loadTaskHistory(currentPage + 1, true)
+    }
+  }
+
+  const handleImageClick = (imageUrl: string) => {
+    setSelectedImage(imageUrl)
+    setIsImageModalOpen(true)
+  }
+
+  const closeImageModal = () => {
+    setIsImageModalOpen(false)
+    setSelectedImage(null)
+  }
+
+  const generateModifiedImage = async (): Promise<File | null> => {
+    const canvas = canvasRef.current
+    const overlayCanvas = overlayCanvasRef.current
+    
+    if (!canvas || !overlayCanvas || !originalImageRef.current) {
+      return null
+    }
+
+    try {
+      // 创建一个新的Canvas来合并两个图层
+      const mergedCanvas = document.createElement('canvas')
+      const mergedCtx = mergedCanvas.getContext('2d')
+      
+      if (!mergedCtx) return null
+
+      // 设置合并Canvas的尺寸为原始图片的实际尺寸
+      const originalImg = originalImageRef.current
+      mergedCanvas.width = originalImg.width
+      mergedCanvas.height = originalImg.height
+
+      // 首先绘制原始图片
+      mergedCtx.drawImage(originalImg, 0, 0, originalImg.width, originalImg.height)
+
+      // 然后绘制覆盖层（需要缩放到原始图片尺寸）
+      const scaleX = originalImg.width / overlayCanvas.width
+      const scaleY = originalImg.height / overlayCanvas.height
+      
+      mergedCtx.save()
+      mergedCtx.scale(scaleX, scaleY)
+      mergedCtx.drawImage(overlayCanvas, 0, 0)
+      mergedCtx.restore()
+
+      // 将合并后的Canvas转换为Blob
+      return new Promise((resolve) => {
+        mergedCanvas.toBlob((blob) => {
+          if (blob) {
+            // 创建File对象，保持原始文件名
+            const file = new File([blob], uploadedFile?.name || 'modified-image.png', {
+              type: 'image/png'
+            })
+            resolve(file)
+          } else {
+            resolve(null)
+          }
+        }, 'image/png', 0.9)
+      })
+    } catch (error) {
+      console.error('Error generating modified image:', error)
+      return null
+    }
+  }
   
   // 绘画相关状态
   const [isDrawing, setIsDrawing] = useState(false)
@@ -78,6 +179,7 @@ export default function RedesignPage() {
         // 重置绘画历史
         setHistory([])
         setHistoryIndex(-1)
+        setHasDrawings(false)
         // 清除之前的结果和错误
         setResultImage(null)
         setError(null)
@@ -196,6 +298,9 @@ export default function RedesignPage() {
     const pos = getMousePos(e)
     ctx.lineTo(pos.x, pos.y)
     ctx.stroke()
+    
+    // 标记有绘制内容
+    setHasDrawings(true)
   }
 
   const stopDrawing = () => {
@@ -276,13 +381,22 @@ export default function RedesignPage() {
     setResultImage(null)
 
     try {
+      setProcessingStep("Processing image...")
+      setProgress(5)
+
+      // 生成修改后的图片（包含用户的绘制内容）
+      const modifiedImage = await generateModifiedImage()
+      if (!modifiedImage) {
+        throw new Error("Failed to generate modified image")
+      }
+
       setProcessingStep("Uploading image...")
       setProgress(10)
 
-      // Submit redesign request
+      // Submit redesign request with modified image
       const response = await redesignApiClient.submitRedesign({
         prompt,
-        image: uploadedFile,
+        image: modifiedImage,
       })
 
       setTaskId(response.taskId)
@@ -310,6 +424,8 @@ export default function RedesignPage() {
           setResultImage(outputs.outputs[0])
           setProgress(100)
           setProcessingStep("Redesign completed!")
+          // Reload task history after successful completion
+          await loadTaskHistory()
         } else {
           throw new Error("No output images received")
         }
@@ -490,6 +606,23 @@ export default function RedesignPage() {
                         Please enter a prompt to enable processing
                       </p>
                     </motion.div>
+                    
+                    {/* 绘制内容提示 */}
+                    {hasDrawings && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        transition={{ duration: 0.3 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="flex items-center gap-2 mt-2 p-2 bg-blue-50 dark:bg-blue-950/20 rounded-md">
+                          <Paintbrush className="size-3 text-blue-600" />
+                          <p className="text-xs text-blue-600 dark:text-blue-400">
+                            Your drawings will be included in the processing
+                          </p>
+                        </div>
+                      </motion.div>
+                    )}
                   </CardContent>
                 </Card>
               </motion.div>
@@ -700,11 +833,11 @@ export default function RedesignPage() {
                             <p className="text-sm text-muted-foreground">Generating modified version...</p>
                           </div>
                         ) : resultImage ? (
-                          <div className="w-full h-full">
+                          <div className="w-full h-full cursor-pointer" onClick={() => handleImageClick(resultImage)}>
                             <img 
                               src={resultImage} 
                               alt="Redesigned garment" 
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-cover hover:opacity-90 transition-opacity"
                             />
                           </div>
                         ) : error ? (
@@ -737,34 +870,151 @@ export default function RedesignPage() {
           </div>
         </div>
 
-        {/* Quick Actions */}
+        {/* Task History */}
         <div className="mt-8">
-          <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
-          <div className="grid md:grid-cols-4 gap-4">
-            {[
-              { title: "Change Color", desc: "Modify garment colors", icon: Palette },
-              { title: "Adjust Style", desc: "Update design elements", icon: Wand2 },
-              { title: "Add Pattern", desc: "Apply new patterns", icon: Scissors },
-              { title: "Export Result", desc: "Download final design", icon: Download },
-            ].map((action, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-              >
-                <Card className="border-border/50 hover:border-primary/50 transition-colors cursor-pointer group">
-                  <CardContent className="p-4 text-center">
-                    <action.icon className="size-8 text-muted-foreground group-hover:text-primary transition-colors mx-auto mb-2" />
-                    <h4 className="font-medium mb-1">{action.title}</h4>
-                    <p className="text-xs text-muted-foreground">{action.desc}</p>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Task History</h3>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => loadTaskHistory(1, false)}
+              disabled={isLoadingHistory}
+              className="gap-2"
+            >
+              {isLoadingHistory ? (
+                <Clock className="size-4 animate-spin" />
+              ) : (
+                <Wand2 className="size-4" />
+              )}
+              Refresh
+            </Button>
           </div>
+          
+          {isLoadingHistory ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center space-y-2">
+                <div className="size-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+                <p className="text-sm text-muted-foreground">Loading history...</p>
+              </div>
+            </div>
+          ) : taskHistory.length > 0 ? (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+                {taskHistory.map((task, index) => (
+                  <motion.div
+                    key={task.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    <Card className="border-border/50 hover:border-primary/50 transition-colors group cursor-pointer">
+                      <CardContent className="p-3">
+                        <div className="space-y-2">
+                          {/* 状态和日期 */}
+                          <div className="flex items-center justify-between">
+                            <Badge 
+                              variant={task.status === 'SUCCESS' ? 'default' : 'secondary'}
+                              className="text-xs px-1.5 py-0.5"
+                            >
+                              {task.status}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(task.created_at).toLocaleDateString('zh-CN', { 
+                                month: 'short', 
+                                day: 'numeric' 
+                              })}
+                            </span>
+                          </div>
+                          
+                          {/* 任务类型 */}
+                          <div className="text-xs font-medium text-center truncate">
+                            {task.task_type === 'targeted_redesign' ? 'Redesign' : task.task_type}
+                          </div>
+                          
+                          {/* 图片预览 */}
+                          {task.image_urls && task.image_urls.length > 0 ? (
+                            <div className="aspect-square rounded-md overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                                 onClick={() => handleImageClick(task.image_urls[0])}>
+                              <img
+                                src={task.image_urls[0]}
+                                alt={`Result`}
+                                className="w-full h-full object-cover"
+                              />
+                              {task.image_urls.length > 1 && (
+                                <div className="absolute top-1 right-1 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded">
+                                  +{task.image_urls.length - 1}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="aspect-square rounded-md bg-muted/50 flex items-center justify-center">
+                              <ImageIcon className="size-4 text-muted-foreground" />
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+              
+              {/* 加载更多按钮 */}
+              {hasMoreHistory && (
+                <div className="flex justify-center mt-6">
+                  <Button 
+                    variant="outline" 
+                    onClick={loadMoreHistory}
+                    disabled={isLoadingHistory}
+                    className="gap-2"
+                  >
+                    {isLoadingHistory ? (
+                      <Clock className="size-4 animate-spin" />
+                    ) : (
+                      <Wand2 className="size-4" />
+                    )}
+                    Load More
+                  </Button>
+                </div>
+              )}
+            </>
+          ) : (
+            <Card className="border-border/50">
+              <CardContent className="py-8 text-center">
+                <ImageIcon className="size-12 text-muted-foreground mx-auto mb-4" />
+                <h4 className="font-medium mb-2">No tasks yet</h4>
+                <p className="text-sm text-muted-foreground">
+                  Complete your first redesign to see it here
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
+
+      {/* Image Modal */}
+      {isImageModalOpen && selectedImage && (
+        <div 
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+          onClick={closeImageModal}
+        >
+          <div className="relative max-w-4xl max-h-[90vh] w-full h-full">
+            <img
+              src={selectedImage}
+              alt="Enlarged view"
+              className="w-full h-full object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              className="absolute top-4 right-4 bg-black/50 text-white border-white/20 hover:bg-black/70"
+              onClick={closeImageModal}
+            >
+              ✕
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

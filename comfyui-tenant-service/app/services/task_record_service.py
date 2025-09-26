@@ -191,7 +191,8 @@ class TaskRecordService:
         self, 
         user_id: str, 
         limit: int = 50, 
-        db = None
+        db = None,
+        offset: int = 0
     ) -> List[Dict[str, Any]]:
         """
         获取用户的任务记录
@@ -199,7 +200,8 @@ class TaskRecordService:
         Args:
             user_id: 用户ID
             limit: 限制数量
-            db: 数据库会话
+            db: 数据库会话或JSON存储
+            offset: 偏移量
             
         Returns:
             任务记录列表
@@ -212,12 +214,12 @@ class TaskRecordService:
             if hasattr(db, 'query'):  # SQLAlchemy session
                 task_records = db.query(TenantTaskRecord).filter(
                     TenantTaskRecord.user_id == user_id
-                ).order_by(TenantTaskRecord.created_at.desc()).limit(limit).all()
+                ).order_by(TenantTaskRecord.created_at.desc()).offset(offset).limit(limit).all()
                 
                 return [record.to_dict() for record in task_records]
             else:
                 # JSON存储模式，使用JSONStorage
-                return db.get_user_tasks(user_id, limit)
+                return db.get_user_tasks(user_id, limit, offset)
             
         except Exception as e:
             logger.error(f"获取用户任务记录失败: {str(e)}")

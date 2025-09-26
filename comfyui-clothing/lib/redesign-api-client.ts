@@ -183,10 +183,17 @@ export class RedesignApiClient {
         // 路径格式: output\\eason\\20250926_093357.png
         // 需要提取: eason/20250926_093357.png
         const relativePath = path.replace(/^output[\\\/]/, "");
-        return `${this.baseUrl}/proxy/static/images/${relativePath.replace(
-          /\\/g,
-          "/"
-        )}`;
+        const imageUrl = `${
+          this.baseUrl
+        }/proxy/static/images/${relativePath.replace(/\\/g, "/")}`;
+        console.log("DEBUG - baseUrl:", this.baseUrl);
+        console.log("DEBUG - 构建的imageUrl:", imageUrl);
+        console.log("DEBUG - TENANT_API_BASE:", TENANT_API_BASE);
+        console.log(
+          "DEBUG - process.env.NEXT_PUBLIC_TENANT_API_URL:",
+          process.env.NEXT_PUBLIC_TENANT_API_URL
+        );
+        return imageUrl;
       });
 
       return { outputs: localUrls };
@@ -247,6 +254,41 @@ export class RedesignApiClient {
 
     throw new Error("Task polling timeout");
   }
+
+  /**
+   * 获取用户的任务历史记录
+   */
+  async getTaskHistory(page: number = 1): Promise<TaskHistoryItem[]> {
+    const response = await fetch(
+      `${this.baseUrl}/proxy/tasks/history?page=${page}`,
+      {
+        method: "GET",
+        headers: this.getHeaders(),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || "Failed to get task history");
+    }
+
+    return response.json();
+  }
+}
+
+export interface TaskHistoryItem {
+  id: number;
+  tenant_task_id: string;
+  user_id: string;
+  runninghub_task_id: string;
+  task_type: string;
+  status: string;
+  created_at: string;
+  completed_at: string | null;
+  result_data: any;
+  storage_paths: string[] | null;
+  image_urls: string[];
+  error_message: string | null;
 }
 
 export const redesignApiClient = new RedesignApiClient();

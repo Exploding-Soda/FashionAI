@@ -203,8 +203,9 @@ class JSONStorage:
         self.logger.info(f"Updated task record to failed: {tenant_task_id}")
         return True
     
-    def get_user_tasks(self, user_id: str, limit: int = 50) -> List[Dict]:
+    def get_user_tasks(self, user_id: str, limit: int = 50, offset: int = 0) -> List[Dict]:
         """Get user's task records"""
         task_records = self._load_data("task_records")
         user_tasks = [t for t in task_records if t.get("user_id") == user_id]
-        return sorted(user_tasks, key=lambda x: x.get("created_at", ""), reverse=True)[:limit]
+        sorted_tasks = sorted(user_tasks, key=lambda x: x.get("created_at", ""), reverse=True)
+        return sorted_tasks[offset:offset + limit]

@@ -193,6 +193,82 @@ async def upload_file(request: Request, current_user = Depends(get_current_user)
 async def generate_image(request: Request, current_user = Depends(get_current_user), db: Session = Depends(get_db)):
     return await proxy_to_runninghub(request, "generate", current_user, db)
 
+@router.get("/tasks/history")
+async def get_task_history(
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    page: int = 1,
+    limit: int = 20
+):
+    """
+    获取用户的任务历史记录
+    """
+    from ..services.task_record_service import task_record_service
+    
+    logger = get_proxy_logger()
+    
+    try:
+        # 获取用户名
+        if settings.is_database_storage():
+            username = current_user.username
+        else:
+            username = current_user["username"]
+        
+        logger.info(f"获取用户任务历史: {username}, 页码: {page}, 限制: {limit}")
+        
+        # 计算偏移量
+        offset = (page - 1) * limit
+        
+        # 获取用户任务记录
+        task_records = task_record_service.get_user_tasks(username, limit, db, offset)
+        
+        # 处理任务记录，添加图片URL
+        history_items = []
+        for record in task_records:
+            # 构建图片URL
+            image_urls = []
+            if record.get("storage_paths"):
+                storage_paths = record["storage_paths"]
+                if isinstance(storage_paths, str):
+                    # 如果是字符串，尝试解析为列表
+                    import json
+                    try:
+                        storage_paths = json.loads(storage_paths)
+                    except:
+                        storage_paths = [storage_paths]
+                
+                for path in storage_paths:
+                    if path:
+                        # 将存储路径转换为可访问的URL
+                        import re
+                        relative_path = re.sub(r'^output[\\\/]', '', path)
+                        # 使用tenant service的URL，确保请求到正确的端口(8081)
+                        image_url = f"http://localhost:8081/proxy/static/images/{relative_path.replace('\\', '/')}"
+                        image_urls.append(image_url)
+            
+            history_item = {
+                "id": record.get("id"),
+                "tenant_task_id": record.get("tenant_task_id"),
+                "user_id": record.get("user_id"),
+                "runninghub_task_id": record.get("runninghub_task_id"),
+                "task_type": record.get("task_type"),
+                "status": record.get("status"),
+                "created_at": record.get("created_at"),
+                "completed_at": record.get("completed_at"),
+                "result_data": record.get("result_data"),
+                "storage_paths": record.get("storage_paths"),
+                "image_urls": image_urls,
+                "error_message": record.get("error_message")
+            }
+            history_items.append(history_item)
+        
+        logger.info(f"返回 {len(history_items)} 条历史记录")
+        return history_items
+        
+    except Exception as e:
+        logger.error(f"获取任务历史失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"获取任务历史失败: {str(e)}")
+
 @router.get("/tasks/{task_id}")
 async def get_task_status(task_id: str, request: Request, current_user = Depends(get_current_user), db: Session = Depends(get_db)):
     return await proxy_to_runninghub(request, f"tasks/{task_id}", current_user, db)
