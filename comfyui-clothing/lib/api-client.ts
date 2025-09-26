@@ -61,6 +61,12 @@ class ApiClient {
       const response = await fetch(url, config);
 
       if (!response.ok) {
+        // 处理401未授权错误
+        if (response.status === 401) {
+          this.handleUnauthorized();
+          throw new Error("Token已失效，请重新登录");
+        }
+
         const errorData: ApiError = await response.json().catch(() => ({
           detail: `HTTP ${response.status}: ${response.statusText}`,
         }));
@@ -73,6 +79,20 @@ class ApiClient {
         throw error;
       }
       throw new Error("网络请求失败");
+    }
+  }
+
+  /**
+   * 处理401未授权错误
+   */
+  private handleUnauthorized(): void {
+    if (typeof window !== "undefined") {
+      // 清除本地存储的token
+      localStorage.removeItem("token");
+      localStorage.removeItem("auth_token");
+
+      // 重定向到主页
+      window.location.href = "/";
     }
   }
 

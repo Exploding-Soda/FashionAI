@@ -76,6 +76,45 @@ export class RedesignApiClient {
   }
 
   /**
+   * 处理401未授权错误
+   */
+  private handleUnauthorized(): void {
+    if (typeof window !== "undefined") {
+      // 清除本地存储的token
+      localStorage.removeItem("token");
+      localStorage.removeItem("auth_token");
+
+      // 重定向到主页
+      window.location.href = "/";
+    }
+  }
+
+  /**
+   * 通用请求方法，处理401错误
+   */
+  private async makeRequest(
+    url: string,
+    options: RequestInit = {}
+  ): Promise<Response> {
+    const response = await fetch(url, options);
+
+    if (!response.ok) {
+      // 处理401未授权错误
+      if (response.status === 401) {
+        this.handleUnauthorized();
+        throw new Error("Token已失效，请重新登录");
+      }
+
+      const error = await response.json().catch(() => ({
+        detail: `HTTP ${response.status}: ${response.statusText}`,
+      }));
+      throw new Error(error.detail || "请求失败");
+    }
+
+    return response;
+  }
+
+  /**
    * Upload image to get image name for processing
    */
   async uploadImage(image: File): Promise<{ imageName: string }> {
@@ -87,7 +126,7 @@ export class RedesignApiClient {
     console.log("Upload request headers:", headers);
     console.log("Token:", this.getToken());
 
-    const response = await fetch(`${this.baseUrl}/proxy/upload`, {
+    const response = await this.makeRequest(`${this.baseUrl}/proxy/upload`, {
       method: "POST",
       headers: headers,
       body: formData,
@@ -98,12 +137,6 @@ export class RedesignApiClient {
       "Upload response headers:",
       Object.fromEntries(response.headers.entries())
     );
-
-    if (!response.ok) {
-      const error = await response.json();
-      console.error("Upload error:", error);
-      throw new Error(error.detail || "Failed to upload image");
-    }
 
     const result = await response.json();
     return { imageName: result.fileName || result.imageName };
@@ -122,19 +155,16 @@ export class RedesignApiClient {
     const headers = this.getFormDataHeaders();
     console.log("Complete image edit request headers:", headers);
 
-    const response = await fetch(`${this.baseUrl}/proxy/complete_image_edit`, {
-      method: "POST",
-      headers: headers,
-      body: formData,
-    });
+    const response = await this.makeRequest(
+      `${this.baseUrl}/proxy/complete_image_edit`,
+      {
+        method: "POST",
+        headers: headers,
+        body: formData,
+      }
+    );
 
     console.log("Complete image edit response status:", response.status);
-
-    if (!response.ok) {
-      const error = await response.json();
-      console.error("Complete image edit error:", error);
-      throw new Error(error.detail || "Failed to submit redesign request");
-    }
 
     return await response.json();
   }
@@ -143,15 +173,13 @@ export class RedesignApiClient {
    * Check task status
    */
   async getTaskStatus(taskId: string): Promise<TaskStatusResponse> {
-    const response = await fetch(`${this.baseUrl}/proxy/tasks/${taskId}`, {
-      method: "GET",
-      headers: this.getHeaders(),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || "Failed to get task status");
-    }
+    const response = await this.makeRequest(
+      `${this.baseUrl}/proxy/tasks/${taskId}`,
+      {
+        method: "GET",
+        headers: this.getHeaders(),
+      }
+    );
 
     return await response.json();
   }
@@ -160,18 +188,13 @@ export class RedesignApiClient {
    * Complete task and automatically download/store images
    */
   async completeTask(taskId: string): Promise<{ outputs: string[] }> {
-    const response = await fetch(
+    const response = await this.makeRequest(
       `${this.baseUrl}/proxy/tasks/${taskId}/complete`,
       {
         method: "POST",
         headers: this.getHeaders(),
       }
     );
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || "Failed to complete task");
-    }
 
     const data = await response.json();
 
@@ -254,18 +277,13 @@ export class RedesignApiClient {
    * 获取用户的任务历史记录
    */
   async getTaskHistory(page: number = 1): Promise<TaskHistoryItem[]> {
-    const response = await fetch(
+    const response = await this.makeRequest(
       `${this.baseUrl}/proxy/tasks/history?page=${page}`,
       {
         method: "GET",
         headers: this.getHeaders(),
       }
     );
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || "Failed to get task history");
-    }
 
     return response.json();
   }

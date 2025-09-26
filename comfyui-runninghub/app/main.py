@@ -23,6 +23,11 @@ def create_app() -> FastAPI:
     app.include_router(v1_router, prefix="/v1")
     app.include_router(workflow_router, prefix="/v1")
     
+    # 添加健康检查端点
+    @app.get("/health")
+    async def health_check():
+        return {"status": "healthy", "service": "comfyui-runninghub"}
+    
     logger.info("服务器配置完成")
     return app
 

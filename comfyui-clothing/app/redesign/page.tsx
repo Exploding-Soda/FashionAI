@@ -47,16 +47,30 @@ export default function RedesignPage() {
   const [processingStep, setProcessingStep] = useState("")
   const [taskId, setTaskId] = useState<string | null>(null)
   const [resultImage, setResultImage] = useState<string | null>(null)
+  const [resultImages, setResultImages] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [taskHistory, setTaskHistory] = useState<TaskHistoryItem[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [hasMoreHistory, setHasMoreHistory] = useState(false)
+  const [selectedImages, setSelectedImages] = useState<string[]>([])
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [isImageModalOpen, setIsImageModalOpen] = useState(false)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [hasMoreHistory, setHasMoreHistory] = useState(false)
   const [hasDrawings, setHasDrawings] = useState(false)
+  const [activeTab, setActiveTab] = useState("original")
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
+  const [showBrushPreview, setShowBrushPreview] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // 绘画功能
+  const [tool, setTool] = useState<'brush' | 'eraser'>('brush')
+  const [brushSize, setBrushSize] = useState(10)
+  const [isDrawing, setIsDrawing] = useState(false)
+  const [history, setHistory] = useState<ImageData[]>([])
+  const [historyIndex, setHistoryIndex] = useState(-1)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const overlayCanvasRef = useRef<HTMLCanvasElement>(null)
+  const originalImageRef = useRef<HTMLImageElement | null>(null)
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -72,6 +86,25 @@ export default function RedesignPage() {
     }
   }, [isAuthenticated])
 
+
+  // 全局滚轮事件处理，阻止在画板区域内的页面滚动
+  useEffect(() => {
+    const handleGlobalWheel = (e: WheelEvent) => {
+      // 检查鼠标是否在画板区域内
+      const canvasContainer = document.querySelector('[data-canvas-container]')
+      if (canvasContainer && canvasContainer.contains(e.target as Node)) {
+        e.preventDefault()
+        e.stopPropagation()
+        e.stopImmediatePropagation()
+        return false
+      }
+    }
+
+    // 使用 passive: false 确保可以调用 preventDefault
+    window.addEventListener('wheel', handleGlobalWheel, { passive: false })
+    return () => window.removeEventListener('wheel', handleGlobalWheel)
+  }, [])
+
   const loadTaskHistory = async (page: number = 1, append: boolean = false) => {
     setIsLoadingHistory(true)
     try {
@@ -82,7 +115,6 @@ export default function RedesignPage() {
         setTaskHistory(history)
       }
       setCurrentPage(page)
-      setHasMoreHistory(history.length === 20) // 如果返回20条记录，可能还有更多
     } catch (error) {
       console.error('Failed to load task history:', error)
     } finally {
@@ -90,98 +122,17 @@ export default function RedesignPage() {
     }
   }
 
-  const loadMoreHistory = () => {
-    if (!isLoadingHistory && hasMoreHistory) {
-      loadTaskHistory(currentPage + 1, true)
-    }
-  }
-
-  const handleImageClick = (imageUrl: string) => {
-    setSelectedImage(imageUrl)
-    setIsImageModalOpen(true)
-  }
-
-  const closeImageModal = () => {
-    setIsImageModalOpen(false)
-    setSelectedImage(null)
-  }
-
-  const generateModifiedImage = async (): Promise<File | null> => {
-    const canvas = canvasRef.current
-    const overlayCanvas = overlayCanvasRef.current
-    
-    if (!canvas || !overlayCanvas || !originalImageRef.current) {
-      return null
-    }
-
-    try {
-      // 创建一个新的Canvas来合并两个图层
-      const mergedCanvas = document.createElement('canvas')
-      const mergedCtx = mergedCanvas.getContext('2d')
-      
-      if (!mergedCtx) return null
-
-      // 设置合并Canvas的尺寸为原始图片的实际尺寸
-      const originalImg = originalImageRef.current
-      mergedCanvas.width = originalImg.width
-      mergedCanvas.height = originalImg.height
-
-      // 首先绘制原始图片
-      mergedCtx.drawImage(originalImg, 0, 0, originalImg.width, originalImg.height)
-
-      // 然后绘制覆盖层（需要缩放到原始图片尺寸）
-      const scaleX = originalImg.width / overlayCanvas.width
-      const scaleY = originalImg.height / overlayCanvas.height
-      
-      mergedCtx.save()
-      mergedCtx.scale(scaleX, scaleY)
-      mergedCtx.drawImage(overlayCanvas, 0, 0)
-      mergedCtx.restore()
-
-      // 将合并后的Canvas转换为Blob
-      return new Promise((resolve) => {
-        mergedCanvas.toBlob((blob) => {
-          if (blob) {
-            // 创建File对象，保持原始文件名
-            const file = new File([blob], uploadedFile?.name || 'modified-image.png', {
-              type: 'image/png'
-            })
-            resolve(file)
-          } else {
-            resolve(null)
-          }
-        }, 'image/png', 0.9)
-      })
-    } catch (error) {
-      console.error('Error generating modified image:', error)
-      return null
-    }
-  }
-  
-  // 绘画相关状态
-  const [isDrawing, setIsDrawing] = useState(false)
-  const [brushSize, setBrushSize] = useState(10)
-  const [tool, setTool] = useState<'brush' | 'eraser'>('brush')
-  const [history, setHistory] = useState<ImageData[]>([])
-  const [historyIndex, setHistoryIndex] = useState(-1)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const imageRef = useRef<HTMLImageElement>(null)
-  const originalImageRef = useRef<HTMLImageElement | null>(null)
-  const overlayCanvasRef = useRef<HTMLCanvasElement>(null)
-
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
     if (file) {
       setUploadedFile(file)
       const reader = new FileReader()
       reader.onload = (e) => {
-        setUploadedImage(e.target?.result as string)
-        // 重置绘画历史
-        setHistory([])
-        setHistoryIndex(-1)
-        setHasDrawings(false)
-        // 清除之前的结果和错误
+        const result = e.target?.result as string
+        setUploadedImage(result)
+        setActiveTab("original")
         setResultImage(null)
+        setResultImages([])
         setError(null)
         setTaskId(null)
       }
@@ -189,19 +140,122 @@ export default function RedesignPage() {
     }
   }
 
-  // 绘画功能
-  const saveToHistory = () => {
+  // 合并原图和画板内容
+  const mergeCanvasWithImage = async (): Promise<File> => {
+    const canvas = canvasRef.current
     const overlayCanvas = overlayCanvasRef.current
-    if (!overlayCanvas) return
     
-    const ctx = overlayCanvas.getContext('2d')
-    if (!ctx) return
+    if (!canvas || !overlayCanvas || !uploadedFile) {
+      throw new Error("Canvas or image not available")
+    }
+
+    // 创建一个新的canvas来合并内容
+    const mergedCanvas = document.createElement('canvas')
+    const mergedCtx = mergedCanvas.getContext('2d')
+    if (!mergedCtx) throw new Error("Failed to get canvas context")
+
+    // 设置合并canvas的尺寸
+    mergedCanvas.width = canvas.width
+    mergedCanvas.height = canvas.height
+
+    // 先绘制原图
+    mergedCtx.drawImage(canvas, 0, 0)
     
-    const imageData = ctx.getImageData(0, 0, overlayCanvas.width, overlayCanvas.height)
-    const newHistory = history.slice(0, historyIndex + 1)
-    newHistory.push(imageData)
-    setHistory(newHistory)
-    setHistoryIndex(newHistory.length - 1)
+    // 再绘制画板内容
+    mergedCtx.drawImage(overlayCanvas, 0, 0)
+
+    // 将合并后的canvas转换为Blob
+    return new Promise((resolve, reject) => {
+      mergedCanvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error("Failed to create blob from canvas"))
+          return
+        }
+        
+        // 创建File对象，保持原始文件名和类型
+        const mergedFile = new File([blob], uploadedFile.name, {
+          type: uploadedFile.type,
+          lastModified: Date.now()
+        })
+        resolve(mergedFile)
+      }, uploadedFile.type, 0.9) // 使用0.9质量以保持文件大小合理
+    })
+  }
+
+  const handleProcess = async () => {
+    if (!uploadedFile || !prompt.trim()) return
+
+    setIsProcessing(true)
+    setProgress(0)
+    setError(null)
+    setResultImage(null)
+    setResultImages([])
+    setProcessingStep("Merging image with drawings...")
+
+    try {
+      // 合并原图和画板内容
+      const mergedImage = await mergeCanvasWithImage()
+      setProgress(10)
+      setProcessingStep("Uploading merged image...")
+
+      // Upload merged image
+      const uploadResponse = await redesignApiClient.uploadImage(mergedImage)
+      setProgress(25)
+      setProcessingStep("Processing image...")
+
+      // Submit redesign request
+      const completeResponse = await redesignApiClient.submitRedesign({
+        prompt: prompt,
+        image: mergedImage
+      })
+      setProgress(50)
+      setProcessingStep("Waiting for completion...")
+
+      // Poll for completion
+      const finalStatus = await pollTaskStatus(completeResponse.taskId)
+      setProgress(100)
+      setProcessingStep("")
+
+      if (finalStatus.status === 'SUCCESS') {
+        // 获取任务结果
+        const taskResult = await redesignApiClient.completeTask(completeResponse.taskId)
+        if (taskResult.outputs && taskResult.outputs.length > 0) {
+          setResultImage(taskResult.outputs[0])
+          setResultImages(taskResult.outputs)
+          setActiveTab("modified")
+          setTaskId(finalStatus.taskId)
+          } else {
+          throw new Error("No output images received")
+          }
+      } else {
+        throw new Error("Task failed")
+      }
+    } catch (error) {
+      console.error('Redesign error:', error)
+      setError(error instanceof Error ? error.message : 'An error occurred during redesign')
+      setProcessingStep("")
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const pollTaskStatus = async (taskId: string): Promise<TaskStatusResponse> => {
+    const maxAttempts = 60
+    const delay = 2000
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        const status = await redesignApiClient.getTaskStatus(taskId)
+        if (status.status === 'SUCCESS' || status.status === 'FAILED') {
+          return status
+        }
+        await new Promise(resolve => setTimeout(resolve, delay))
+    } catch (error) {
+        console.error('Error polling task status:', error)
+        throw error
+    }
+    }
+    throw new Error('Task processing timeout')
   }
 
   const undo = () => {
@@ -230,6 +284,29 @@ export default function RedesignPage() {
     }
   }
 
+  // 键盘快捷键处理
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 只在Original标签页且没有在输入框中时处理快捷键
+      if (activeTab !== "original" || document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+        return
+      }
+
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'z' && !e.shiftKey) {
+          e.preventDefault()
+          undo()
+        } else if ((e.key === 'y') || (e.key === 'z' && e.shiftKey)) {
+          e.preventDefault()
+          redo()
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeTab, historyIndex, history.length, undo, redo])
+
   const getMousePos = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const overlayCanvas = overlayCanvasRef.current
     if (!overlayCanvas) return { x: 0, y: 0 }
@@ -255,7 +332,6 @@ export default function RedesignPage() {
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     e.preventDefault()
     setIsDrawing(true)
-    saveToHistory()
     
     const overlayCanvas = overlayCanvasRef.current
     if (!overlayCanvas) return
@@ -265,9 +341,7 @@ export default function RedesignPage() {
     
     const pos = getMousePos(e)
     
-    ctx.beginPath()
-    ctx.moveTo(pos.x, pos.y)
-    
+    // 先设置画笔样式，再开始绘制路径
     if (tool === 'brush') {
       ctx.globalCompositeOperation = 'source-over'
       ctx.strokeStyle = '#00ff00' // 纯绿色
@@ -283,6 +357,10 @@ export default function RedesignPage() {
       ctx.lineCap = 'round'
       ctx.shadowBlur = 0
     }
+    
+    // 设置完样式后再开始绘制路径
+    ctx.beginPath()
+    ctx.moveTo(pos.x, pos.y)
   }
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
@@ -305,7 +383,128 @@ export default function RedesignPage() {
 
   const stopDrawing = () => {
     setIsDrawing(false)
+    // 绘制完成后保存历史状态
+    saveToHistory()
   }
+
+  // 处理鼠标移动，更新画笔预览位置
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    setMousePosition({ x, y })
+  }
+
+  // 处理鼠标滚轮，调整画笔大小
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    e.nativeEvent.stopImmediatePropagation()
+    
+    if (e.deltaY < 0) {
+      // 向上滚动，增大画笔
+      setBrushSize(prev => Math.min(50, prev + 2))
+    } else {
+      // 向下滚动，减小画笔
+      setBrushSize(prev => Math.max(1, prev - 2))
+    }
+    
+    return false
+  }
+
+  const saveToHistory = () => {
+    const overlayCanvas = overlayCanvasRef.current
+    if (!overlayCanvas) return
+    
+    const ctx = overlayCanvas.getContext('2d')
+    if (!ctx) return
+    
+    const imageData = ctx.getImageData(0, 0, overlayCanvas.width, overlayCanvas.height)
+    const newHistory = history.slice(0, historyIndex + 1)
+    newHistory.push(imageData)
+    setHistory(newHistory)
+    setHistoryIndex(newHistory.length - 1)
+  }
+
+  // 当切换到Original标签页时，重新初始化Canvas
+  useEffect(() => {
+    if (activeTab === "original" && uploadedImage) {
+      // 延迟执行以确保DOM完全渲染
+      setTimeout(() => {
+        // 重新触发Canvas初始化
+        if (canvasRef.current && overlayCanvasRef.current) {
+      const canvas = canvasRef.current
+      const overlayCanvas = overlayCanvasRef.current
+      const ctx = canvas.getContext('2d')
+      const overlayCtx = overlayCanvas.getContext('2d')
+      if (!ctx || !overlayCtx) return
+      
+      const img = new Image()
+      img.onload = () => {
+        // 保存原始图片引用
+        originalImageRef.current = img
+        
+        // 获取容器的实际尺寸
+        const container = canvas.parentElement
+        if (!container) return
+        
+        const containerRect = container.getBoundingClientRect()
+        const maxSize = Math.min(containerRect.width, containerRect.height)
+        
+        // 计算图片的显示尺寸，保持宽高比
+        const aspectRatio = img.width / img.height
+        let displayWidth, displayHeight
+        
+        if (aspectRatio > 1) {
+          displayWidth = maxSize
+          displayHeight = maxSize / aspectRatio
+        } else {
+          displayHeight = maxSize
+          displayWidth = maxSize * aspectRatio
+        }
+        
+        // 设置两个Canvas的显示尺寸
+        canvas.style.width = `${displayWidth}px`
+        canvas.style.height = `${displayHeight}px`
+        overlayCanvas.style.width = `${displayWidth}px`
+        overlayCanvas.style.height = `${displayHeight}px`
+        
+        // 设置Canvas的实际像素尺寸（用于绘制）
+        const dpr = window.devicePixelRatio || 1
+        canvas.width = displayWidth * dpr
+        canvas.height = displayHeight * dpr
+        overlayCanvas.width = displayWidth * dpr
+        overlayCanvas.height = displayHeight * dpr
+        
+        // 缩放上下文以匹配设备像素比
+        ctx.scale(dpr, dpr)
+        overlayCtx.scale(dpr, dpr)
+        
+        // 只在底层Canvas绘制原始图片
+        ctx.drawImage(img, 0, 0, displayWidth, displayHeight)
+        
+        // 清空覆盖层Canvas
+        overlayCtx.clearRect(0, 0, displayWidth, displayHeight)
+        
+            // 恢复绘画内容（如果有）
+            if (history.length > 0 && historyIndex >= 0) {
+              overlayCtx.putImageData(history[historyIndex], 0, 0)
+            }
+            
+            // 重新设置画笔默认样式
+            overlayCtx.globalCompositeOperation = 'source-over'
+            overlayCtx.strokeStyle = '#00ff00' // 纯绿色
+            overlayCtx.lineWidth = brushSize
+            overlayCtx.lineCap = 'round'
+            overlayCtx.lineJoin = 'round'
+            overlayCtx.shadowBlur = 0
+            overlayCtx.shadowColor = 'transparent'
+      }
+      img.src = uploadedImage
+    }
+      }, 150) // 增加延迟时间确保标签页完全切换
+    }
+  }, [activeTab, uploadedImage, history, historyIndex])
 
   // 初始化Canvas
   useEffect(() => {
@@ -363,6 +562,15 @@ export default function RedesignPage() {
         // 清空覆盖层Canvas
         overlayCtx.clearRect(0, 0, displayWidth, displayHeight)
         
+        // 设置画笔默认样式
+        overlayCtx.globalCompositeOperation = 'source-over'
+        overlayCtx.strokeStyle = '#00ff00' // 纯绿色
+        overlayCtx.lineWidth = brushSize
+        overlayCtx.lineCap = 'round'
+        overlayCtx.lineJoin = 'round'
+        overlayCtx.shadowBlur = 0
+        overlayCtx.shadowColor = 'transparent'
+        
         // 保存初始状态到历史（只保存覆盖层）
         const imageData = overlayCtx.getImageData(0, 0, overlayCanvas.width, overlayCanvas.height)
         setHistory([imageData])
@@ -372,75 +580,19 @@ export default function RedesignPage() {
     }
   }, [uploadedImage])
 
-  const handleProcess = async () => {
-    if (!uploadedFile || !prompt || !isAuthenticated) return
-
-    setIsProcessing(true)
-    setProgress(0)
-    setError(null)
-    setResultImage(null)
-
-    try {
-      setProcessingStep("Processing image...")
-      setProgress(5)
-
-      // 生成修改后的图片（包含用户的绘制内容）
-      const modifiedImage = await generateModifiedImage()
-      if (!modifiedImage) {
-        throw new Error("Failed to generate modified image")
-      }
-
-      setProcessingStep("Uploading image...")
-      setProgress(10)
-
-      // Submit redesign request with modified image
-      const response = await redesignApiClient.submitRedesign({
-        prompt,
-        image: modifiedImage,
-      })
-
-      setTaskId(response.taskId)
-      setProcessingStep("Processing redesign request...")
-      setProgress(30)
-
-      // Poll for completion
-      const finalStatus = await redesignApiClient.pollTaskCompletion(
-        response.taskId,
-        (status: TaskStatusResponse) => {
-          setProcessingStep(status.message || "Processing...")
-          if (status.progress) {
-            setProgress(30 + (status.progress * 0.6)) // 30-90% range
-          }
-        }
-      )
-
-      if (finalStatus.status === 'SUCCESS') {
-        setProcessingStep("Getting results...")
-        setProgress(90)
-
-        // Get the outputs
-        const outputs = await redesignApiClient.getTaskOutputs(response.taskId)
-        if (outputs.outputs && outputs.outputs.length > 0) {
-          setResultImage(outputs.outputs[0])
-          setProgress(100)
-          setProcessingStep("Redesign completed!")
-          // Reload task history after successful completion
-          await loadTaskHistory()
-        } else {
-          throw new Error("No output images received")
-        }
-      } else {
-        throw new Error(finalStatus.message || "Redesign failed")
-      }
-    } catch (error) {
-      console.error('Redesign error:', error)
-      setError(error instanceof Error ? error.message : 'An error occurred during redesign')
-      setProcessingStep("")
-    } finally {
-      setIsProcessing(false)
+  const handleImageClick = (task: TaskHistoryItem) => {
+    if (task.image_urls && task.image_urls.length > 0) {
+      setSelectedImages(task.image_urls)
+      setSelectedImage(task.image_urls[0])
+      setIsImageModalOpen(true)
     }
   }
 
+  const closeImageModal = () => {
+    setIsImageModalOpen(false)
+    setSelectedImage(null)
+    setSelectedImages([])
+  }
 
   // Show loading state while checking authentication
   if (isLoading) {
@@ -473,211 +625,10 @@ export default function RedesignPage() {
       />
 
       <div className="container mx-auto px-6 py-8">
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Left Panel - Controls */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Upload Section */}
-            <Card className="border-border/50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Upload className="size-5" />
-                  Upload Garment
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div
-                  className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  {uploadedImage ? (
-                    <div className="space-y-2">
-                      <CheckCircle className="size-8 text-primary mx-auto" />
-                      <p className="text-sm font-medium">Image uploaded successfully</p>
-                      <p className="text-xs text-muted-foreground">Click to change image</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <ImageIcon className="size-8 text-muted-foreground mx-auto" />
-                      <p className="text-sm font-medium">Drop your garment image here</p>
-                      <p className="text-xs text-muted-foreground">or click to browse</p>
-                    </div>
-                  )}
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                />
-              </CardContent>
-            </Card>
-
-            {/* Prompt Input Section */}
-            <Card className="border-border/50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Wand2 className="size-5" />
-                  Redesign Prompt
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <Label htmlFor="prompt" className="text-sm font-medium">
-                    Describe your redesign vision
-                  </Label>
-                  <Textarea
-                    id="prompt"
-                    placeholder="e.g., Change the color to navy blue, add a floral pattern, make it more elegant..."
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    className="min-h-[120px] resize-none"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Start Processing */}
-            {uploadedImage && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, ease: "easeOut" }}
-              >
-                <Card className="border-border/50">
-                  <CardContent className="pt-6">
-                    <motion.div
-                      whileHover={!isProcessing && prompt.trim() ? { scale: 1.02 } : {}}
-                      whileTap={!isProcessing && prompt.trim() ? { scale: 0.98 } : {}}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <Button 
-                        onClick={handleProcess} 
-                        disabled={!prompt.trim() || isProcessing} 
-                        className="w-full gap-2 relative overflow-hidden"
-                      >
-                        {isProcessing ? (
-                          <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ duration: 0.3 }}
-                            className="flex items-center gap-2"
-                          >
-                            <Clock className="size-4 animate-spin" />
-                            <span>Processing...</span>
-                          </motion.div>
-                        ) : (
-                          <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ duration: 0.3 }}
-                            className="flex items-center gap-2"
-                          >
-                            <Wand2 className="size-4" />
-                            <span>Start Processing</span>
-                          </motion.div>
-                        )}
-                        
-                        {/* 处理中的背景动画 */}
-                        {isProcessing && (
-                          <motion.div
-                            className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-                            animate={{ x: ["-100%", "100%"] }}
-                            transition={{ 
-                              duration: 1.5, 
-                              repeat: Infinity, 
-                              ease: "linear" 
-                            }}
-                          />
-                        )}
-                      </Button>
-                    </motion.div>
-                    
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ 
-                        opacity: !prompt.trim() ? 1 : 0, 
-                        height: !prompt.trim() ? "auto" : 0 
-                      }}
-                      transition={{ duration: 0.3 }}
-                      className="overflow-hidden"
-                    >
-                      <p className="text-xs text-muted-foreground mt-2 text-center">
-                        Please enter a prompt to enable processing
-                      </p>
-                    </motion.div>
-                    
-                    {/* 绘制内容提示 */}
-                    {hasDrawings && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        transition={{ duration: 0.3 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="flex items-center gap-2 mt-2 p-2 bg-blue-50 dark:bg-blue-950/20 rounded-md">
-                          <Paintbrush className="size-3 text-blue-600" />
-                          <p className="text-xs text-blue-600 dark:text-blue-400">
-                            Your drawings will be included in the processing
-                          </p>
-                        </div>
-                      </motion.div>
-                    )}
-                  </CardContent>
-                </Card>
-              </motion.div>
-            )}
-
-            {/* Processing Status */}
-            {isProcessing && (
-              <Card className="border-primary/50 bg-primary/5">
-                <CardContent className="pt-6">
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <div className="size-2 rounded-full bg-primary animate-pulse" />
-                      <span className="text-sm font-medium">{processingStep}</span>
-                    </div>
-                    <Progress value={progress} className="w-full" />
-                    <p className="text-xs text-muted-foreground">
-                      {taskId && `Task ID: ${taskId}`}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Error Display */}
-            {error && (
-              <Card className="border-destructive/50 bg-destructive/5">
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-2 text-destructive">
-                    <AlertCircle className="size-4" />
-                    <span className="text-sm font-medium">Error</span>
-                  </div>
-                  <p className="text-sm text-destructive mt-2">{error}</p>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Success Display */}
-            {resultImage && !isProcessing && (
-              <Card className="border-green-500/50 bg-green-500/5">
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-2 text-green-600">
-                    <CheckCircle className="size-4" />
-                    <span className="text-sm font-medium">Redesign Completed!</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Your redesigned garment is ready for download.
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          {/* Right Panel - Preview */}
-          <div className="lg:col-span-2">
-            <Card className="border-border/50 h-full">
+        <div className="space-y-6">
+          {/* Top Panel - Preview */}
+          <div className="w-full">
+            <Card className="border-border/50 h-[600px] mx-4">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
@@ -770,29 +721,29 @@ export default function RedesignPage() {
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-6 rounded-full border-2 border-border flex items-center justify-center">
                         <div 
-                          className="w-3 h-3 rounded-full"
-                          style={{ 
-                            backgroundColor: tool === 'brush' ? '#00ff00' : '#ef4444',
-                            opacity: tool === 'eraser' ? 0.5 : 1
-                          }}
+                          className="w-4 h-4 rounded-full"
+                          style={{ backgroundColor: '#00ff00' }}
                         />
                       </div>
-                      <span className="text-xs text-muted-foreground">
-                        {tool === 'brush' ? 'Green Brush' : 'Eraser'}
-                      </span>
                     </div>
                   </div>
                 )}
               </CardHeader>
-              <CardContent className="flex-1">
-                {uploadedImage ? (
-                  <Tabs defaultValue="original" className="w-full">
-                    <TabsList className="grid w-full grid-cols-2">
+              <CardContent className="flex-1 p-0">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full h-full">
+                  <TabsList className="grid w-full grid-cols-2 px-4 max-w-4xl mx-auto">
                       <TabsTrigger value="original">Original</TabsTrigger>
                       <TabsTrigger value="modified">Modified</TabsTrigger>
                     </TabsList>
-                    <TabsContent value="original" className="mt-6">
-                      <div className="relative aspect-square max-w-md mx-auto rounded-lg overflow-hidden border border-border bg-muted/20 flex items-center justify-center">
+                  <TabsContent value="original" className="mt-6 h-[400px] p-4">
+                    <div 
+                      data-canvas-container
+                      className="relative w-full h-full max-w-full mx-auto rounded-lg overflow-hidden border border-border bg-muted/20 flex items-center justify-center"
+                      onWheel={handleWheel}
+                      onMouseMove={handleMouseMove}
+                      onMouseEnter={() => setShowBrushPreview(true)}
+                      onMouseLeave={() => setShowBrushPreview(false)}
+                    >
                         {/* 底层Canvas - 显示原始图片 */}
                         <canvas
                           ref={canvasRef}
@@ -815,8 +766,24 @@ export default function RedesignPage() {
                             userSelect: 'none'
                           }}
                         />
+                      {/* 画笔预览圆圈 */}
+                      {showBrushPreview && uploadedImage && (
+                        <div
+                          className="absolute pointer-events-none border-2 border-primary/50 rounded-full"
+                          style={{
+                            left: mousePosition.x - brushSize / 2,
+                            top: mousePosition.y - brushSize / 2,
+                            width: brushSize,
+                            height: brushSize,
+                            opacity: 0.7
+                          }}
+                        />
+                      )}
                         {!uploadedImage && (
-                          <div className="absolute inset-0 flex items-center justify-center">
+                        <div 
+                          className="absolute inset-0 flex items-center justify-center cursor-pointer hover:bg-muted/20 transition-colors rounded-lg"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
                             <div className="text-center space-y-2">
                               <ImageIcon className="size-8 text-muted-foreground mx-auto" />
                               <p className="text-sm text-muted-foreground">Upload an image to start painting</p>
@@ -825,53 +792,187 @@ export default function RedesignPage() {
                         )}
                       </div>
                     </TabsContent>
-                    <TabsContent value="modified" className="mt-6">
-                      <div className="relative aspect-square max-w-md mx-auto rounded-lg overflow-hidden border border-border bg-muted/20 flex items-center justify-center">
+                  <TabsContent value="modified" className="mt-6 h-[400px] p-4">
+                    <div className="relative w-full h-full max-w-full mx-auto rounded-lg overflow-hidden border border-border bg-muted/20 flex items-center justify-center">
                         {isProcessing ? (
                           <div className="text-center space-y-4">
                             <div className="size-12 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
                             <p className="text-sm text-muted-foreground">Generating modified version...</p>
                           </div>
                         ) : resultImage ? (
-                          <div className="w-full h-full cursor-pointer" onClick={() => handleImageClick(resultImage)}>
+                        <div className="w-full h-full relative">
+                          {/* 主图片显示 */}
+                          <div className="w-full h-full cursor-pointer" onClick={() => {
+                            if (resultImages.length > 0) {
+                              setSelectedImages(resultImages)
+                              setSelectedImage(resultImage)
+                              setIsImageModalOpen(true)
+                            }
+                          }}>
                             <img 
                               src={resultImage} 
-                              alt="Redesigned garment" 
-                              className="w-full h-full object-cover hover:opacity-90 transition-opacity"
+                              alt="Modified garment"
+                              className="w-full h-full object-contain"
                             />
                           </div>
-                        ) : error ? (
-                          <div className="text-center space-y-2">
-                            <AlertCircle className="size-8 text-destructive mx-auto" />
-                            <p className="text-sm text-destructive">Failed to generate result</p>
+                          
+                          {/* 多图片导航 */}
+                          {resultImages.length > 1 && (
+                            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
+                              {resultImages.map((img, index) => (
+                                <button
+                                  key={index}
+                                  onClick={() => setResultImage(img)}
+                                  className={`w-8 h-8 rounded border-2 overflow-hidden ${
+                                    img === resultImage ? 'border-primary' : 'border-border'
+                                  }`}
+                                >
+                                  <img
+                                    src={img}
+                                    alt={`Result ${index + 1}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </button>
+                              ))}
+                            </div>
+                          )}
                           </div>
                         ) : (
                           <div className="text-center space-y-2">
-                            <AlertCircle className="size-8 text-muted-foreground mx-auto" />
-                            <p className="text-sm text-muted-foreground">Modified version will appear here</p>
+                          <Wand2 className="size-8 text-muted-foreground mx-auto" />
+                          <p className="text-sm text-muted-foreground">No modified version yet</p>
+                          <p className="text-xs text-muted-foreground">Upload an image and enter a prompt to get started</p>
                           </div>
                         )}
                       </div>
                     </TabsContent>
                   </Tabs>
-                ) : (
-                  <div className="flex items-center justify-center h-96 border-2 border-dashed border-border rounded-lg">
-                    <div className="text-center space-y-4">
-                      <ImageIcon className="size-12 text-muted-foreground mx-auto" />
-                      <div>
-                        <p className="text-lg font-medium">No image uploaded</p>
-                        <p className="text-sm text-muted-foreground">Upload a garment image to start redesigning</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </CardContent>
             </Card>
           </div>
+
+          {/* Bottom Panel - Integrated Chat Input */}
+          <div className="w-full mx-4">
+            <div className="space-y-4">
+              {/* 集成的聊天输入框 */}
+              <div className="flex items-center gap-3 p-4 border border-border rounded-lg bg-muted/30 max-w-4xl mx-auto">
+                {/* 上传图标/状态 */}
+                <div className="flex-shrink-0">
+                  {uploadedImage ? (
+                    <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center cursor-pointer"
+                         onClick={() => fileInputRef.current?.click()}>
+                      <ImageIcon className="size-5 text-primary" />
+                    </div>
+                  ) : (
+                    <div className="size-10 rounded-full bg-muted flex items-center justify-center cursor-pointer"
+                         onClick={() => fileInputRef.current?.click()}>
+                      <Upload className="size-5 text-muted-foreground" />
+                      </div>
+                  )}
+                    </div>
+                
+                {/* 输入框 */}
+                <div className="flex-1">
+               <Textarea
+                 id="prompt"
+                 placeholder="Describe your redesign vision... (e.g., Change the color to navy blue, add a floral pattern, make it more elegant)"
+                 value={prompt}
+                 onChange={(e) => setPrompt(e.target.value)}
+                 className="min-h-[60px] resize-none border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none"
+               />
+                  </div>
+                
+                {/* 发送按钮 */}
+                <Button 
+                  onClick={handleProcess} 
+                  disabled={!prompt.trim() || isProcessing || !uploadedImage}
+                  size="sm"
+                  className="flex-shrink-0"
+                >
+                  {isProcessing ? (
+                    <Clock className="size-4 animate-spin" />
+                  ) : (
+                    <Wand2 className="size-4" />
+                  )}
+                </Button>
+                
+                {/* 隐藏的文件输入 */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+              </div>
+              
+              {/* 绘制内容提示 */}
+              {hasDrawings && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  transition={{ duration: 0.3 }}
+                  className="overflow-hidden"
+                >
+                  <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
+                    <Paintbrush className="size-4 text-blue-600" />
+                    <p className="text-sm text-blue-600 dark:text-blue-400">
+                      Your drawings will be included in the processing
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </div>
+          </div>
+
+          {/* Processing Status */}
+          {isProcessing && (
+            <Card className="border-primary/50 bg-primary/5 mx-4">
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <div className="size-2 rounded-full bg-primary animate-pulse" />
+                    <span className="text-sm font-medium">{processingStep}</span>
+                  </div>
+                  <Progress value={progress} className="w-full" />
+                  <p className="text-xs text-muted-foreground">
+                    {taskId && `Task ID: ${taskId}`}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Error Display */}
+          {error && (
+            <Card className="border-destructive/50 bg-destructive/5 mx-4">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-2 text-destructive">
+                  <AlertCircle className="size-4" />
+                  <span className="text-sm font-medium">Error</span>
+          </div>
+                <p className="text-sm text-destructive mt-2">{error}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Success Display */}
+          {resultImage && !isProcessing && (
+            <Card className="border-green-500/50 bg-green-500/5 mx-4">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-2 text-green-600">
+                  <CheckCircle className="size-4" />
+                  <span className="text-sm font-medium">Redesign Completed!</span>
         </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Your redesigned garment is ready for download.
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
         {/* Task History */}
-        <div className="mt-8">
+          <div className="mt-8 mx-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Task History</h3>
             <Button 
@@ -933,8 +1034,8 @@ export default function RedesignPage() {
                           
                           {/* 图片预览 */}
                           {task.image_urls && task.image_urls.length > 0 ? (
-                            <div className="aspect-square rounded-md overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
-                                 onClick={() => handleImageClick(task.image_urls[0])}>
+                              <div className="aspect-square rounded-md overflow-hidden cursor-pointer hover:opacity-90 transition-opacity relative"
+                                   onClick={() => handleImageClick(task)}>
                               <img
                                 src={task.image_urls[0]}
                                 alt={`Result`}
@@ -947,8 +1048,8 @@ export default function RedesignPage() {
                               )}
                             </div>
                           ) : (
-                            <div className="aspect-square rounded-md bg-muted/50 flex items-center justify-center">
-                              <ImageIcon className="size-4 text-muted-foreground" />
+                              <div className="aspect-square rounded-md bg-muted flex items-center justify-center">
+                                <ImageIcon className="size-6 text-muted-foreground" />
                             </div>
                           )}
                         </div>
@@ -958,12 +1059,12 @@ export default function RedesignPage() {
                 ))}
               </div>
               
-              {/* 加载更多按钮 */}
+                {/* Load More Button */}
               {hasMoreHistory && (
                 <div className="flex justify-center mt-6">
                   <Button 
                     variant="outline" 
-                    onClick={loadMoreHistory}
+                      onClick={() => loadTaskHistory(currentPage + 1, true)}
                     disabled={isLoadingHistory}
                     className="gap-2"
                   >
@@ -988,22 +1089,27 @@ export default function RedesignPage() {
               </CardContent>
             </Card>
           )}
+          </div>
         </div>
       </div>
 
       {/* Image Modal */}
-      {isImageModalOpen && selectedImage && (
+      {isImageModalOpen && selectedImage && selectedImages.length > 0 && (
         <div 
           className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
           onClick={closeImageModal}
         >
-          <div className="relative max-w-4xl max-h-[90vh] w-full h-full">
+          <div className="relative max-w-6xl max-h-[90vh] w-full h-full">
+            {/* 主图片显示 */}
+            <div className="relative w-full h-full flex items-center justify-center">
             <img
               src={selectedImage}
               alt="Enlarged view"
-              className="w-full h-full object-contain"
+                className="max-w-full max-h-full object-contain"
               onClick={(e) => e.stopPropagation()}
             />
+              
+              {/* 关闭按钮 */}
             <Button
               variant="outline"
               size="sm"
@@ -1012,6 +1118,75 @@ export default function RedesignPage() {
             >
               ✕
             </Button>
+              
+              {/* 图片计数器 */}
+              {selectedImages.length > 1 && (
+                <div className="absolute top-4 left-4 bg-black/50 text-white text-sm px-3 py-1 rounded">
+                  {selectedImages.findIndex(img => img === selectedImage) + 1} / {selectedImages.length}
+          </div>
+              )}
+        </div>
+            
+            {/* 多图片时的导航按钮 */}
+            {selectedImages.length > 1 && (
+              <>
+                {/* 上一张按钮 */}
+                {selectedImages.findIndex(img => img === selectedImage) > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black/50 text-white border-white/20 hover:bg-black/70"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const currentIndex = selectedImages.findIndex(img => img === selectedImage)
+                      setSelectedImage(selectedImages[currentIndex - 1])
+                    }}
+                  >
+                    ‹
+                  </Button>
+                )}
+                
+                {/* 下一张按钮 */}
+                {selectedImages.findIndex(img => img === selectedImage) < selectedImages.length - 1 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black/50 text-white border-white/20 hover:bg-black/70"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const currentIndex = selectedImages.findIndex(img => img === selectedImage)
+                      setSelectedImage(selectedImages[currentIndex + 1])
+                    }}
+                  >
+                    ›
+                  </Button>
+                )}
+                
+                {/* 缩略图导航（如果图片较多） */}
+                {selectedImages.length <= 4 && (
+                  <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex gap-1">
+                    {selectedImages.map((img, index) => (
+                      <button
+                        key={index}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setSelectedImage(img)
+                        }}
+                        className={`w-8 h-8 rounded border-2 overflow-hidden ${
+                          img === selectedImage ? 'border-white' : 'border-white/50'
+                        }`}
+                      >
+                        <img
+                          src={img}
+                          alt={`Thumbnail ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}
