@@ -242,10 +242,10 @@ async def get_task_history(
                         # 将存储路径转换为可访问的URL
                         import re
                         relative_path = re.sub(r'^output[\\\/]', '', path)
-                        # 使用tenant service的URL，确保请求到正确的端口(8081)
+                        # 返回相对路径，让前端通过Next.js API路由代理请求
                         # 先处理路径分隔符，避免在f-string中使用反斜杠
                         normalized_path = relative_path.replace('\\', '/')
-                        image_url = f"http://localhost:8081/proxy/static/images/{normalized_path}"
+                        image_url = f"/api/proxy/static/images/{normalized_path}"
                         image_urls.append(image_url)
             
             history_item = {
