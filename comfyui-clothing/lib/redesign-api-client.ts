@@ -1,10 +1,9 @@
 /**
  * Redesign API Client
- * Handles image upload and redesign requests to the tenant service
+ * Handles image upload and redesign requests through Next.js API routes
  */
 
-const TENANT_API_BASE =
-  process.env.NEXT_PUBLIC_TENANT_API_URL || "http://localhost:8081";
+const API_BASE_URL = "/api"; // 使用 Next.js API 路由
 
 export interface RedesignRequest {
   prompt: string;
@@ -29,7 +28,7 @@ export class RedesignApiClient {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = TENANT_API_BASE;
+    this.baseUrl = API_BASE_URL;
   }
 
   private getToken(): string | null {
@@ -188,11 +187,7 @@ export class RedesignApiClient {
         }/proxy/static/images/${relativePath.replace(/\\/g, "/")}`;
         console.log("DEBUG - baseUrl:", this.baseUrl);
         console.log("DEBUG - 构建的imageUrl:", imageUrl);
-        console.log("DEBUG - TENANT_API_BASE:", TENANT_API_BASE);
-        console.log(
-          "DEBUG - process.env.NEXT_PUBLIC_TENANT_API_URL:",
-          process.env.NEXT_PUBLIC_TENANT_API_URL
-        );
+        console.log("DEBUG - API_BASE_URL:", API_BASE_URL);
         return imageUrl;
       });
 

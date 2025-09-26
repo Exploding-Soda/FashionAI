@@ -20,6 +20,14 @@
 ### 租户相关
 - `GET /api/tenants/me` → `GET http://localhost:8081/tenants/me`
 
+### Redesign相关
+- `POST /api/proxy/upload` → `POST http://localhost:8081/proxy/upload`
+- `POST /api/proxy/complete_image_edit` → `POST http://localhost:8081/proxy/complete_image_edit`
+- `GET /api/proxy/tasks/[taskId]` → `GET http://localhost:8081/proxy/tasks/[taskId]`
+- `POST /api/proxy/tasks/[taskId]/complete` → `POST http://localhost:8081/proxy/tasks/[taskId]/complete`
+- `GET /api/proxy/tasks/history` → `GET http://localhost:8081/proxy/tasks/history`
+- `GET /api/proxy/static/images/[...path]` → `GET http://localhost:8081/proxy/static/images/[...path]`
+
 ## 优势
 
 1. **安全性**: 前端不直接暴露后端API地址
