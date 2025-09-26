@@ -150,8 +150,8 @@ export default function RedesignPage() {
     }
 
     // 创建一个新的canvas来合并内容
-    const mergedCanvas = document.createElement('canvas')
-    const mergedCtx = mergedCanvas.getContext('2d')
+      const mergedCanvas = document.createElement('canvas')
+      const mergedCtx = mergedCanvas.getContext('2d')
     if (!mergedCtx) throw new Error("Failed to get canvas context")
 
     // 设置合并canvas的尺寸
@@ -162,11 +162,11 @@ export default function RedesignPage() {
     mergedCtx.drawImage(canvas, 0, 0)
     
     // 再绘制画板内容
-    mergedCtx.drawImage(overlayCanvas, 0, 0)
+      mergedCtx.drawImage(overlayCanvas, 0, 0)
 
     // 将合并后的canvas转换为Blob
     return new Promise((resolve, reject) => {
-      mergedCanvas.toBlob((blob) => {
+        mergedCanvas.toBlob((blob) => {
         if (!blob) {
           reject(new Error("Failed to create blob from canvas"))
           return
@@ -187,7 +187,7 @@ export default function RedesignPage() {
 
     setIsProcessing(true)
     setProgress(0)
-    setError(null)
+        setError(null)
     setResultImage(null)
     setResultImages([])
     setProcessingStep("Merging image with drawings...")
@@ -292,6 +292,20 @@ export default function RedesignPage() {
         return
       }
 
+      // 工具切换快捷键
+      if (e.key.toLowerCase() === 'e') {
+        e.preventDefault()
+        setTool('eraser')
+        return
+      }
+      
+      if (e.key.toLowerCase() === 'b' || e.key.toLowerCase() === 'v') {
+        e.preventDefault()
+        setTool('brush')
+        return
+      }
+
+      // Ctrl/Cmd + Z 撤销/重做
       if (e.ctrlKey || e.metaKey) {
         if (e.key === 'z' && !e.shiftKey) {
           e.preventDefault()
@@ -305,7 +319,7 @@ export default function RedesignPage() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [activeTab, historyIndex, history.length, undo, redo])
+  }, [activeTab, historyIndex, history.length, undo, redo, tool])
 
   const getMousePos = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const overlayCanvas = overlayCanvasRef.current
@@ -449,18 +463,23 @@ export default function RedesignPage() {
         if (!container) return
         
         const containerRect = container.getBoundingClientRect()
-        const maxSize = Math.min(containerRect.width, containerRect.height)
+        const containerWidth = containerRect.width
+        const containerHeight = containerRect.height
         
-        // 计算图片的显示尺寸，保持宽高比
-        const aspectRatio = img.width / img.height
+        // 计算图片适应画板区域的缩放比例，保持宽高比
+        const imageAspectRatio = img.width / img.height
+        const containerAspectRatio = containerWidth / containerHeight
+        
         let displayWidth, displayHeight
         
-        if (aspectRatio > 1) {
-          displayWidth = maxSize
-          displayHeight = maxSize / aspectRatio
+        if (imageAspectRatio > containerAspectRatio) {
+          // 图片更宽，以宽度为准
+          displayWidth = containerWidth
+          displayHeight = containerWidth / imageAspectRatio
         } else {
-          displayHeight = maxSize
-          displayWidth = maxSize * aspectRatio
+          // 图片更高，以高度为准
+          displayHeight = containerHeight
+          displayWidth = containerHeight * imageAspectRatio
         }
         
         // 设置两个Canvas的显示尺寸
@@ -525,18 +544,23 @@ export default function RedesignPage() {
         if (!container) return
         
         const containerRect = container.getBoundingClientRect()
-        const maxSize = Math.min(containerRect.width, containerRect.height)
+        const containerWidth = containerRect.width
+        const containerHeight = containerRect.height
         
-        // 计算图片的显示尺寸，保持宽高比
-        const aspectRatio = img.width / img.height
+        // 计算图片适应画板区域的缩放比例，保持宽高比
+        const imageAspectRatio = img.width / img.height
+        const containerAspectRatio = containerWidth / containerHeight
+        
         let displayWidth, displayHeight
         
-        if (aspectRatio > 1) {
-          displayWidth = maxSize
-          displayHeight = maxSize / aspectRatio
+        if (imageAspectRatio > containerAspectRatio) {
+          // 图片更宽，以宽度为准
+          displayWidth = containerWidth
+          displayHeight = containerWidth / imageAspectRatio
         } else {
-          displayHeight = maxSize
-          displayWidth = maxSize * aspectRatio
+          // 图片更高，以高度为准
+          displayHeight = containerHeight
+          displayWidth = containerHeight * imageAspectRatio
         }
         
         // 设置两个Canvas的显示尺寸
@@ -628,7 +652,7 @@ export default function RedesignPage() {
         <div className="space-y-6">
           {/* Top Panel - Preview */}
           <div className="w-full">
-            <Card className="border-border/50 h-[600px] mx-4">
+            <Card className="border-border/50 h-[700px] mx-4">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
@@ -735,7 +759,7 @@ export default function RedesignPage() {
                       <TabsTrigger value="original">Original</TabsTrigger>
                       <TabsTrigger value="modified">Modified</TabsTrigger>
                     </TabsList>
-                  <TabsContent value="original" className="mt-6 h-[400px] p-4">
+                  <TabsContent value="original" className="mt-6 h-[480px] p-4">
                     <div 
                       data-canvas-container
                       className="relative w-full h-full max-w-full mx-auto rounded-lg overflow-hidden border border-border bg-muted/20 flex items-center justify-center"
@@ -744,6 +768,20 @@ export default function RedesignPage() {
                       onMouseEnter={() => setShowBrushPreview(true)}
                       onMouseLeave={() => setShowBrushPreview(false)}
                     >
+                      {/* 工具状态显示 */}
+                      <div className="absolute top-4 left-4 z-10">
+                        <div className="flex items-center gap-2 bg-background/80 backdrop-blur-sm rounded-lg px-3 py-2 border border-border/50">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${tool === 'brush' ? 'bg-green-500' : 'bg-red-500'}`} />
+                            <span className="text-sm font-medium">
+                              {tool === 'brush' ? 'Brush' : 'Eraser'}
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Size: {brushSize}px
+                          </div>
+                        </div>
+                      </div>
                         {/* 底层Canvas - 显示原始图片 */}
                         <canvas
                           ref={canvasRef}
@@ -792,7 +830,7 @@ export default function RedesignPage() {
                         )}
                       </div>
                     </TabsContent>
-                  <TabsContent value="modified" className="mt-6 h-[400px] p-4">
+                  <TabsContent value="modified" className="mt-6 h-[480px] p-4">
                     <div className="relative w-full h-full max-w-full mx-auto rounded-lg overflow-hidden border border-border bg-muted/20 flex items-center justify-center">
                         {isProcessing ? (
                           <div className="text-center space-y-4">

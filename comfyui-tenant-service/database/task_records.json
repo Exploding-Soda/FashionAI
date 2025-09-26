@@ -422,5 +422,69 @@
       "output\\eason\\20250926_155207.png"
     ],
     "error_message": null
+  },
+  {
+    "id": 16,
+    "tenant_task_id": "tenant_4384bce05ad04847",
+    "user_id": "eason",
+    "runninghub_task_id": "1971487606112468993",
+    "task_type": "targeted_redesign",
+    "status": "SUCCESS",
+    "created_at": "2025-09-26T08:10:48.453918",
+    "completed_at": "2025-09-26T08:11:13.012777",
+    "result_data": {
+      "taskId": "1971487606112468993",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00002_jgrck_1758874265.png",
+          "fileType": "png",
+          "taskCostTime": "18",
+          "nodeId": "32"
+        },
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_qjtgk_1758874254.png",
+          "fileType": "png",
+          "taskCostTime": "18",
+          "nodeId": "50"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\eason\\20250926_161111.png",
+      "output\\eason\\20250926_161112.png"
+    ],
+    "error_message": null
+  },
+  {
+    "id": 17,
+    "tenant_task_id": "tenant_138f343d8a1f4e4d",
+    "user_id": "eason",
+    "runninghub_task_id": "1971488605094985729",
+    "task_type": "targeted_redesign",
+    "status": "SUCCESS",
+    "created_at": "2025-09-26T08:14:46.641012",
+    "completed_at": "2025-09-26T08:15:27.562082",
+    "result_data": {
+      "taskId": "1971488605094985729",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_cjppc_1758874502.png",
+          "fileType": "png",
+          "taskCostTime": "27",
+          "nodeId": "50"
+        },
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00002_mcmfv_1758874518.png",
+          "fileType": "png",
+          "taskCostTime": "27",
+          "nodeId": "32"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\eason\\20250926_161526.png",
+      "output\\eason\\20250926_161526.png"
+    ],
+    "error_message": null
   }
 ]
