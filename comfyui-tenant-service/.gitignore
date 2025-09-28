@@ -107,3 +107,4 @@ dmypy.json
 # Project specific
 *.bat
 output/
+database/
