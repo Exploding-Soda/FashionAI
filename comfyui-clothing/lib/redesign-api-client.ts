@@ -8,6 +8,9 @@ const API_BASE_URL = "/api"; // 使用 Next.js API 路由
 export interface RedesignRequest {
   prompt: string;
   image: File;
+  image_2?: File | null;
+  image_3?: File | null;
+  image_4?: File | null;
 }
 
 export interface RedesignResponse {
@@ -151,6 +154,17 @@ export class RedesignApiClient {
     formData.append("file", request.image);
     formData.append("fileType", "image");
     formData.append("prompt", request.prompt);
+
+    // 添加额外的图片（如果提供）
+    if (request.image_2) {
+      formData.append("file_2", request.image_2);
+    }
+    if (request.image_3) {
+      formData.append("file_3", request.image_3);
+    }
+    if (request.image_4) {
+      formData.append("file_4", request.image_4);
+    }
 
     const headers = this.getFormDataHeaders();
     console.log("Complete image edit request headers:", headers);

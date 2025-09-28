@@ -16,6 +16,9 @@ class CompleteImageEditInput(BaseModel):
     file: UploadFile
     fileType: str = "image"
     prompt: str = ""
+    file_2: Optional[UploadFile] = None
+    file_3: Optional[UploadFile] = None
+    file_4: Optional[UploadFile] = None
 
 
 class CompleteImageEditWorkflow(Workflow):
@@ -69,7 +72,7 @@ class CompleteImageEditWorkflow(Workflow):
     def input_model(self):
         return CompleteImageEditInput
     
-    async def execute_workflow(self, file: UploadFile, fileType: str = "image", prompt: str = "", **kwargs) -> Dict[str, Any]:
+    async def execute_workflow(self, file: UploadFile, fileType: str = "image", prompt: str = "", file_2: Optional[UploadFile] = None, file_3: Optional[UploadFile] = None, file_4: Optional[UploadFile] = None, **kwargs) -> Dict[str, Any]:
         """
         执行完整的工作流：上传图片 -> 编辑图片
         
@@ -77,33 +80,49 @@ class CompleteImageEditWorkflow(Workflow):
             file: 上传的图片文件
             fileType: 文件类型
             prompt: 编辑提示词
+            file_2: 第二张图片文件（可选）
+            file_3: 第三张图片文件（可选）
+            file_4: 第四张图片文件（可选）
             
         Returns:
             包含任务ID和状态的结果
         """
         try:
-            # 第一步：上传图片
-            self.logger.info(f"开始上传图片: {file.filename}")
+            # 第一步：上传所有图片
+            image_names = {}
+            
+            # 上传第一张图片
+            self.logger.info(f"开始上传第一张图片: {file.filename}")
             image_name = await self.client.upload_file(file=file, file_type=fileType)
+            image_names['image_1'] = self._process_upload_result(image_name, "第一张图片")
             
-            self.logger.info(f"上传接口返回的原始数据: {image_name}")
-            self.logger.info(f"返回数据类型: {type(image_name)}")
+            # 上传第二张图片（如果提供）
+            if file_2:
+                self.logger.info(f"开始上传第二张图片: {file_2.filename}")
+                image_2_name = await self.client.upload_file(file=file_2, file_type=fileType)
+                image_names['image_2'] = self._process_upload_result(image_2_name, "第二张图片")
             
-            if not image_name:
-                raise ValueError("图片上传失败，未获取到图片名称")
+            # 上传第三张图片（如果提供）
+            if file_3:
+                self.logger.info(f"开始上传第三张图片: {file_3.filename}")
+                image_3_name = await self.client.upload_file(file=file_3, file_type=fileType)
+                image_names['image_3'] = self._process_upload_result(image_3_name, "第三张图片")
             
-            # 确保image_name是字符串格式的路径
-            if isinstance(image_name, dict):
-                # 如果是字典，提取fileName
-                image_name = image_name.get("fileName", str(image_name))
-            elif not isinstance(image_name, str):
-                image_name = str(image_name)
-            
-            self.logger.info(f"处理后的图片名称: {image_name}")
+            # 上传第四张图片（如果提供）
+            if file_4:
+                self.logger.info(f"开始上传第四张图片: {file_4.filename}")
+                image_4_name = await self.client.upload_file(file=file_4, file_type=fileType)
+                image_names['image_4'] = self._process_upload_result(image_4_name, "第四张图片")
             
             # 第二步：执行图片编辑
             self.logger.info(f"开始执行图片编辑，提示词: {prompt}")
-            node_info_list = self.get_node_info_list(prompt=prompt, image_name=image_name)
+            node_info_list = self.get_node_info_list(
+                prompt=prompt, 
+                image_name=image_names.get('image_1', ''),
+                image_2=image_names.get('image_2', ''),
+                image_3=image_names.get('image_3', ''),
+                image_4=image_names.get('image_4', '')
+            )
             
             task_id = await self.client.create_task(
                 webapp_id=self.webapp_id,
@@ -127,7 +146,7 @@ class CompleteImageEditWorkflow(Workflow):
             
             return {
                 "taskId": task_id,
-                "imageName": image_name,
+                "imageNames": image_names,
                 "status": "created",
                 "message": "图片编辑任务已创建"
             }
@@ -136,13 +155,45 @@ class CompleteImageEditWorkflow(Workflow):
             self.logger.error(f"工作流执行失败: {str(e)}")
             raise e
     
-    def get_node_info_list(self, prompt: str = "", image_name: str = "", **kwargs) -> List[Dict[str, Any]]:
+    def _process_upload_result(self, upload_result: Any, image_description: str) -> str:
+        """
+        处理上传结果，确保返回字符串格式的图片名称
+        
+        Args:
+            upload_result: 上传接口返回的结果
+            image_description: 图片描述（用于日志）
+            
+        Returns:
+            处理后的图片名称字符串
+        """
+        self.logger.info(f"{image_description}上传接口返回的原始数据: {upload_result}")
+        self.logger.info(f"返回数据类型: {type(upload_result)}")
+        
+        if not upload_result:
+            raise ValueError(f"{image_description}上传失败，未获取到图片名称")
+        
+        # 确保image_name是字符串格式的路径
+        if isinstance(upload_result, dict):
+            # 如果是字典，提取fileName
+            image_name = upload_result.get("fileName", str(upload_result))
+        elif not isinstance(upload_result, str):
+            image_name = str(upload_result)
+        else:
+            image_name = upload_result
+        
+        self.logger.info(f"处理后的{image_description}名称: {image_name}")
+        return image_name
+    
+    def get_node_info_list(self, prompt: str = "", image_name: str = "", image_2: str = "", image_3: str = "", image_4: str = "", **kwargs) -> List[Dict[str, Any]]:
         """
         生成图片编辑的节点信息列表
         
         Args:
             prompt: 编辑提示词
-            image_name: 图片名称
+            image_name: 第一张图片名称
+            image_2: 第二张图片名称
+            image_3: 第三张图片名称
+            image_4: 第四张图片名称
         """
         # 确保 prompt 是字符串
         if isinstance(prompt, dict):
@@ -160,9 +211,9 @@ class CompleteImageEditWorkflow(Workflow):
             image_name = str(image_name)
         
         if not image_name.strip():
-            raise ValueError("图片名称不能为空")
+            raise ValueError("第一张图片名称不能为空")
         
-        return [
+        node_info_list = [
             {
                 "nodeId": "35",
                 "fieldName": "image",
@@ -176,6 +227,33 @@ class CompleteImageEditWorkflow(Workflow):
                 "description": "text"
             }
         ]
+        
+        # 添加额外的图片节点（如果提供了图片名称）
+        if image_2.strip():
+            node_info_list.append({
+                "nodeId": "53",
+                "fieldName": "image",
+                "fieldValue": image_2,
+                "description": "image"
+            })
+        
+        if image_3.strip():
+            node_info_list.append({
+                "nodeId": "51",
+                "fieldName": "image",
+                "fieldValue": image_3,
+                "description": "image"
+            })
+        
+        if image_4.strip():
+            node_info_list.append({
+                "nodeId": "52",
+                "fieldName": "image",
+                "fieldValue": image_4,
+                "description": "image"
+            })
+        
+        return node_info_list
 
 
 # 为了向后兼容，保留原有的ImageEditWorkflow

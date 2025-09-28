@@ -3,7 +3,7 @@
 根据工作流定义自动创建端点
 """
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from pydantic import BaseModel
 from ..services.runninghub_client import get_runninghub_client
 from ..services.task_manager import get_task_manager
@@ -109,6 +109,9 @@ async def complete_image_edit(
     file: UploadFile = File(...),
     fileType: str = Form(default="image"),
     prompt: str = Form(...),
+    file_2: Optional[UploadFile] = File(None),
+    file_3: Optional[UploadFile] = File(None),
+    file_4: Optional[UploadFile] = File(None),
     client = Depends(get_runninghub_client),
     task_manager = Depends(get_task_manager),
 ):
@@ -127,7 +130,10 @@ async def complete_image_edit(
         result = await workflow.execute_workflow(
             file=file,
             fileType=fileType,
-            prompt=prompt
+            prompt=prompt,
+            file_2=file_2,
+            file_3=file_3,
+            file_4=file_4
         )
         
         logger.info(f"完整图片编辑工作流执行成功: {result}")
