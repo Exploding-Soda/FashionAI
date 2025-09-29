@@ -298,13 +298,13 @@ export default function RedesignPage() {
       if (img.prompt.trim()) {
         return `图${index + 1}：${img.prompt.trim()}`
       } else {
-        return `无视图${index + 1}`
+        return `Ignore image ${index + 1}`
       }
     })
     
     // 确保有4个prompt（即使没有图片）
     while (prompts.length < 4) {
-      prompts.push(`无视图${prompts.length + 1}`)
+      prompts.push(`Ignore image ${prompts.length + 1}`)
     }
     
     return `参考：
@@ -313,11 +313,11 @@ ${prompts[1]}
 ${prompts[2]}
 ${prompts[3]}
 
-输出一张**无模特**的服装图，
-左半部分是服装的正面展示图，
-右半部分是服装的背面展示图，
-背景为(255,255,255)的纯白色，
-保持输入图片的服装比例`
+输出：
+将背景修改为(255,255,255)的纯白色，
+在输出的左半部分，保持输入图片的服装比例，显示完整全身图并补齐缺失的画面。
+在输出的右半部分，生成背面视图。保持角色一致性
+保持人物面部特征`
   }
 
   // 合并原图和画板内容
