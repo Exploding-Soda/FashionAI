@@ -18,6 +18,21 @@ export interface TaskStatusResponse {
   message?: string;
 }
 
+export interface TaskHistoryItem {
+  id: number;
+  tenant_task_id: string;
+  user_id: string;
+  runninghub_task_id: string;
+  task_type: string;
+  status: string;
+  created_at: string;
+  completed_at: string | null;
+  result_data: any;
+  storage_paths: string[] | null;
+  image_urls: string[];
+  error_message: string | null;
+}
+
 export class ExtractApiClient {
   private baseUrl: string = API_BASE_URL;
 
@@ -91,7 +106,16 @@ export class ExtractApiClient {
     }
     return { outputs: [] };
   }
+
+  async getTaskHistory(page: number = 1, taskType?: string): Promise<TaskHistoryItem[]> {
+    const qs = new URLSearchParams({ page: String(page) });
+    if (taskType) qs.set('task_type', taskType);
+    const res = await this.makeRequest(
+      `${this.baseUrl}/proxy/tasks/history?${qs.toString()}`,
+      { method: "GET", headers: this.getHeaders() }
+    );
+    return res.json();
+  }
 }
 
 export const extractApiClient = new ExtractApiClient();
-

@@ -17,7 +17,9 @@ This repository contains three cooperating services that power the image redesig
 - comfyui-runninghub (FastAPI)
   - Workflow layer exposing:
     - Dynamic workflow endpoints: `POST /v1/generate/{workflow_name}`
-    - A convenience endpoint for full image edit: `POST /v1/complete_image_edit`
+    - Convenience endpoints:
+      - `POST /v1/complete_image_edit` (image edit: upload + edit)
+      - `POST /v1/complete_pattern_extract` (pattern extract: upload + extract)
   - Each workflow assembles a `node_info_list` and enqueues a task for processing, returning a `taskId` for polling.
 
 ## Configuration & Addresses
@@ -72,16 +74,45 @@ This repository contains three cooperating services that power the image redesig
    - Tenant Service fetches `GET {RUNNINGHUB}/v1/tasks/{taskId}/outputs`, downloads all images into `output/<username>/...`, updates the task record, and returns `storagePaths`.
    - Frontend maps returned `storagePaths` to accessible URLs under `/api/proxy/static/images/{relativePath}` to display results.
 
+## End‑to‑End Flow: Extract (Complete Pattern Extract)
+
+1) User action (Frontend UI)
+   - User uploads a garment/model image on `/extract` and clicks “Extract Patterns”.
+   - The frontend sends multipart form‑data with `file` to its API route.
+
+2) Next.js API proxy → Tenant Service
+   - `POST /api/proxy/complete_pattern_extract` forwards the request and Authorization header to `POST {TENANT_API_BASE}/proxy/complete_pattern_extract`.
+
+3) Tenant Service → RunningHub
+   - Validates the user/tenant, then proxies to `POST {RUNNINGHUB}/v1/complete_pattern_extract`.
+   - On success, creates a tenant task record (type `pattern_extract`) and augments the response with `tenantTaskId`.
+
+4) RunningHub workflow execution
+   - The `complete_pattern_extract` workflow:
+     - Uploads the received image file to the upstream.
+     - Builds a `node_info_list` for extract (e.g., a single `image` node with `nodeId=224`).
+     - Enqueues the task with its `webapp_id` and returns `taskId`.
+
+5) Status polling (Frontend)
+   - Frontend polls `GET /api/proxy/tasks/{taskId}` → Tenant Service proxies to `GET {RUNNINGHUB}/v1/tasks/{taskId}` until completion.
+
+6) Finalization and outputs (Frontend → Tenant Service)
+   - Frontend calls `POST /api/proxy/tasks/{taskId}/complete`.
+   - Tenant Service pulls `GET {RUNNINGHUB}/v1/tasks/{taskId}/outputs`, downloads images to `output/<username>/...`, updates the task record, and returns `storagePaths`.
+   - Frontend displays images via `/api/proxy/static/images/{relativePath}` and switches the preview tab to “Extracted”.
+
 ## Key Endpoints (Stable Paths)
 
 - Frontend (Next.js API → Tenant Service)
   - `POST /api/proxy/complete_image_edit` → `POST {TENANT}/proxy/complete_image_edit`
+  - `POST /api/proxy/complete_pattern_extract` → `POST {TENANT}/proxy/complete_pattern_extract`
   - `GET  /api/proxy/tasks/{taskId}` → `GET  {TENANT}/proxy/tasks/{taskId}`
   - `POST /api/proxy/tasks/{taskId}/complete` → `POST {TENANT}/proxy/tasks/{taskId}/complete`
   - `GET  /api/proxy/static/images/{...}` → serves images via Tenant Service
 
 - Tenant Service (Proxy → RunningHub)
   - `POST /proxy/complete_image_edit` → `POST {RUNNINGHUB}/v1/complete_image_edit`
+  - `POST /proxy/complete_pattern_extract` → `POST {RUNNINGHUB}/v1/complete_pattern_extract`
   - `GET  /proxy/tasks/{taskId}` → `GET  {RUNNINGHUB}/v1/tasks/{taskId}`
   - `GET  /proxy/tasks/{taskId}/outputs` → `GET {RUNNINGHUB}/v1/tasks/{taskId}/outputs` (internal use during completion)
   - `POST /proxy/tasks/{taskId}/complete` → pulls outputs, downloads, stores, and responds with local paths
@@ -90,9 +121,17 @@ This repository contains three cooperating services that power the image redesig
 
 - RunningHub (Workflow + Task Management)
   - `POST /v1/complete_image_edit`
+  - `POST /v1/complete_pattern_extract`
   - `POST /v1/generate/{workflow_name}` (dynamic workflows; e.g., classical `image_edit` expects pre‑uploaded image names)
   - `GET  /v1/tasks/{taskId}`
   - `GET  /v1/tasks/{taskId}/outputs`
+
+## Task History Filtering
+
+- Tenant Service supports filtering task history by type via `GET /proxy/tasks/history?task_type=<type>`.
+- The frontend uses this to show page‑specific histories:
+  - `/redesign` requests `task_type=targeted_redesign`.
+  - `/extract` requests `task_type=pattern_extract`.
 
 ## Alternative Path: Classic Image Edit (Pre‑uploaded image names)
 
@@ -121,4 +160,3 @@ This repository contains three cooperating services that power the image redesig
 ---
 
 This document should remain accurate even when internal file names or line numbers change, since it focuses on stable endpoints, responsibilities, and data flow between services.
-

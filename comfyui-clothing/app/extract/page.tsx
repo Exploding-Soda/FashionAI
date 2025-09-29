@@ -1,19 +1,16 @@
 "use client"
 
-import type React from "react"
+import React from "react"
 
 import { useState, useRef } from "react"
 import { motion } from "framer-motion"
 import {
   Upload,
-  Download,
   Scissors,
-  RotateCcw,
   Settings,
   Zap,
   ImageIcon,
   Layers,
-  Grid3X3,
   CheckCircle,
   Clock,
   AlertCircle,
@@ -24,14 +21,12 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Slider } from "@/components/ui/slider"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 import { CollapsibleHeader } from "@/components/collapsible-header"
 import Image from "next/image"
 import { extractApiClient } from "@/lib/extract-api-client"
+import type { TaskHistoryItem } from "@/lib/extract-api-client"
 import { useAuth } from "@/contexts/auth-context"
 
 export default function ExtractPage() {
@@ -40,12 +35,14 @@ export default function ExtractPage() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
-  const [extractionMode, setExtractionMode] = useState("full")
   const [processingStep, setProcessingStep] = useState("")
   const [extractedPatterns, setExtractedPatterns] = useState<any[]>([])
   const [extractedImages, setExtractedImages] = useState<string[]>([])
   const [selectedPattern, setSelectedPattern] = useState<number | null>(null)
+  const [activeTab, setActiveTab] = useState("original")
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [taskHistory, setTaskHistory] = useState<TaskHistoryItem[]>([])
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -90,6 +87,9 @@ export default function ExtractPage() {
       const outputs = await extractApiClient.completeTask(resp.taskId)
       setExtractedImages(outputs.outputs)
       setExtractedPatterns(outputs.outputs.map((url, idx) => ({ id: idx + 1, name: `Pattern ${idx + 1}`, type: 'extracted', size: 'auto' })))
+      setActiveTab("extracted")
+      // 刷新任务历史
+      loadTaskHistory()
     } catch (e) {
       console.error('Extract error:', e)
     } finally {
@@ -99,12 +99,25 @@ export default function ExtractPage() {
     }
   }
 
-  const extractionModes = [
-    { value: "full", label: "Full Pattern", desc: "Extract complete pattern design" },
-    { value: "tile", label: "Repeating Tile", desc: "Extract seamless tile pattern" },
-    { value: "elements", label: "Pattern Elements", desc: "Extract individual elements" },
-    { value: "variants", label: "Generate Variants", desc: "Create pattern variations" },
-  ]
+  const loadTaskHistory = async () => {
+    setIsLoadingHistory(true)
+    try {
+      const history = await extractApiClient.getTaskHistory(1, 'pattern_extract')
+      setTaskHistory(history)
+    } catch (e) {
+      console.error('Load task history error:', e)
+    } finally {
+      setIsLoadingHistory(false)
+    }
+  }
+
+  React.useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      loadTaskHistory()
+    }
+  }, [isLoading, isAuthenticated])
+
+  // Settings 部分已简化，仅保留操作按钮
 
   return (
     <div className="min-h-screen bg-background">
@@ -170,45 +183,6 @@ export default function ExtractPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Extraction Mode</label>
-                    <Select value={extractionMode} onValueChange={setExtractionMode}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {extractionModes.map((mode) => (
-                          <SelectItem key={mode.value} value={mode.value}>
-                            <div>
-                              <div className="font-medium">{mode.label}</div>
-                              <div className="text-xs text-muted-foreground">{mode.desc}</div>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Pattern Sensitivity</label>
-                    <Slider defaultValue={[80]} max={100} step={1} className="w-full" />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Background Removal</label>
-                    <Slider defaultValue={[90]} max={100} step={1} className="w-full" />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium">Generate Variants</label>
-                    <Switch defaultChecked />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium">High Resolution</label>
-                    <Switch defaultChecked />
-                  </div>
-
                   <Button onClick={handleExtract} disabled={isProcessing} className="w-full gap-2">
                     {isProcessing ? (
                       <>
@@ -244,46 +218,7 @@ export default function ExtractPage() {
               </Card>
             )}
 
-            {/* Extracted Patterns List */}
-            {extractedPatterns.length > 0 && (
-              <Card className="border-border/50">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Layers className="size-5" />
-                    Extracted Patterns
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {extractedPatterns.map((pattern, i) => (
-                    <div
-                      key={pattern.id}
-                      className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                        selectedPattern === i ? "border-primary bg-primary/5" : "border-border hover:border-border/60"
-                      }`}
-                      onClick={() => setSelectedPattern(i)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-sm">{pattern.name}</p>
-                          <p className="text-xs text-muted-foreground">{pattern.size}</p>
-                        </div>
-                        <div className="flex gap-1">
-                          <Button size="sm" variant="ghost" className="size-8 p-0">
-                            <Eye className="size-3" />
-                          </Button>
-                          <Button size="sm" variant="ghost" className="size-8 p-0">
-                            <Copy className="size-3" />
-                          </Button>
-                          <Button size="sm" variant="ghost" className="size-8 p-0">
-                            <Download className="size-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
+            {/* Extracted Patterns List removed */}
           </div>
 
           {/* Right Panel - Preview */}
@@ -295,25 +230,12 @@ export default function ExtractPage() {
                     <ImageIcon className="size-5" />
                     Pattern Preview
                   </CardTitle>
-                  {uploadedImage && (
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        <Grid3X3 className="size-4" />
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <RotateCcw className="size-4" />
-                      </Button>
-                      <Button size="sm" className="gap-2">
-                        <Download className="size-4" />
-                        Export All
-                      </Button>
-                    </div>
-                  )}
+                  {/* 去掉九宫格、刷新、导出按钮 */}
                 </div>
               </CardHeader>
               <CardContent className="flex-1">
                 {uploadedImage ? (
-                  <Tabs defaultValue="original" className="w-full">
+                  <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                     <TabsList className="grid w-full grid-cols-3">
                       <TabsTrigger value="original">Original</TabsTrigger>
                       <TabsTrigger value="extracted">Extracted</TabsTrigger>
@@ -386,35 +308,66 @@ export default function ExtractPage() {
           </div>
         </div>
 
-        {/* Pattern Library */}
+        {/* Task History */}
         <div className="mt-8">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">Pattern Library</h3>
-            <Button variant="outline" size="sm" className="gap-2 bg-transparent">
-              <Trash2 className="size-4" />
-              Clear All
+            <h3 className="text-lg font-semibold">Task History</h3>
+            <Button variant="outline" size="sm" className="gap-2 bg-transparent" onClick={loadTaskHistory} disabled={isLoadingHistory}>
+              {isLoadingHistory ? <Clock className="size-4 animate-spin" /> : <Scissors className="size-4" />}
+              Refresh
             </Button>
           </div>
-          <div className="grid md:grid-cols-6 gap-4">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: i * 0.1 }}
-              >
-                <Card className="border-border/50 hover:border-primary/50 transition-colors cursor-pointer group">
-                  <CardContent className="p-3">
-                    <div className="aspect-square rounded-lg bg-gradient-to-br from-primary/10 to-secondary/10 mb-2 flex items-center justify-center">
-                      <Scissors className="size-6 text-muted-foreground group-hover:text-primary transition-colors" />
-                    </div>
-                    <p className="text-xs font-medium text-center">Pattern {i}</p>
-                    <p className="text-xs text-muted-foreground text-center">512x512</p>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
+
+          {isLoadingHistory ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center space-y-2">
+                <div className="size-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+                <p className="text-sm text-muted-foreground">Loading history...</p>
+              </div>
+            </div>
+          ) : taskHistory.length > 0 ? (
+            <div className="grid md:grid-cols-6 gap-4">
+              {taskHistory.map((task, idx) => (
+                <motion.div key={task.tenant_task_id || idx} initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.2 }}>
+                  <Card className="border-border/50 hover:border-primary/50 transition-colors">
+                    <CardContent className="p-2">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Badge variant={task.status === 'SUCCESS' ? 'default' : task.status === 'FAILED' ? 'destructive' : 'secondary'}>
+                            {task.status}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {task.created_at ? new Date(task.created_at).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : ''}
+                          </span>
+                        </div>
+                        <div className="text-xs font-medium truncate">
+                          {task.task_type}
+                        </div>
+                        {task.image_urls && task.image_urls.length > 0 ? (
+                          <div className="aspect-square rounded-md overflow-hidden">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={task.image_urls[0]} alt="Result" className="w-full h-full object-cover" />
+                          </div>
+                        ) : (
+                          <div className="aspect-square rounded-md bg-muted flex items-center justify-center">
+                            <ImageIcon className="size-6 text-muted-foreground" />
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <Card className="border-border/50">
+              <CardContent className="py-8 text-center">
+                <ImageIcon className="size-12 text-muted-foreground mx-auto mb-4" />
+                <h4 className="font-medium mb-2">No tasks yet</h4>
+                <p className="text-sm text-muted-foreground">Run an extraction to see history here</p>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>

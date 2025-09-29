@@ -290,9 +290,11 @@ export class RedesignApiClient {
   /**
    * 获取用户的任务历史记录
    */
-  async getTaskHistory(page: number = 1): Promise<TaskHistoryItem[]> {
+  async getTaskHistory(page: number = 1, taskType?: string): Promise<TaskHistoryItem[]> {
+    const qs = new URLSearchParams({ page: String(page) });
+    if (taskType) qs.set('task_type', taskType);
     const response = await this.makeRequest(
-      `${this.baseUrl}/proxy/tasks/history?page=${page}`,
+      `${this.baseUrl}/proxy/tasks/history?${qs.toString()}`,
       {
         method: "GET",
         headers: this.getHeaders(),

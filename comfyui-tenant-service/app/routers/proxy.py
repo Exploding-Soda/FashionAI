@@ -198,7 +198,8 @@ async def get_task_history(
     current_user = Depends(get_current_user),
     db: Session = Depends(get_db),
     page: int = 1,
-    limit: int = 20
+    limit: int = 20,
+    task_type: str | None = None,
 ):
     """
     获取用户的任务历史记录
@@ -221,6 +222,13 @@ async def get_task_history(
         
         # 获取用户任务记录
         task_records = task_record_service.get_user_tasks(username, limit, db, offset)
+
+        # 可选：按任务类型筛选
+        if task_type:
+            try:
+                task_records = [r for r in task_records if (r.get("task_type") == task_type)]
+            except Exception:
+                pass
         
         # 处理任务记录，添加图片URL
         history_items = []

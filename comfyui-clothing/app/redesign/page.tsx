@@ -85,6 +85,79 @@ export default function RedesignPage() {
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null)
   const originalImageRef = useRef<HTMLImageElement | null>(null)
 
+  // 下载当前结果图片
+  const downloadCurrentResult = async () => {
+    if (!resultImage) return
+    try {
+      const link = document.createElement('a')
+      link.href = resultImage
+      const ts = new Date().toISOString().replace(/[:.]/g, "-")
+      link.download = `redesign-${ts}.png`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    } catch (e) {
+      console.error('Download failed:', e)
+    }
+  }
+
+  // 将当前结果作为新的原图并重置到单图编辑
+  const useResultAsOriginal = async () => {
+    if (!resultImage) return
+    try {
+      const res = await fetch(resultImage)
+      const blob = await res.blob()
+      const fileName = `redesign-base-${Date.now()}.png`
+      const file = new File([blob], fileName, { type: blob.type || 'image/png' })
+      const objectUrl = URL.createObjectURL(blob)
+
+      const newData = {
+        id: `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        image: objectUrl,
+        file: file,
+        prompt: "",
+        hasDrawings: false,
+        history: [],
+        historyIndex: -1
+      }
+
+      setImageData([newData])
+      setCurrentImageIndex(0)
+      setUploadedImage(objectUrl)
+      setUploadedFile(file)
+      setPrompt("")
+      setHasDrawings(false)
+      setHistory([])
+      setHistoryIndex(-1)
+
+      // 清空结果并切回原图页签，方便继续添加/编辑
+      setResultImage(null)
+      setResultImages([])
+      setSelectedImages([])
+      setIsImageModalOpen(false)
+      setActiveTab("original")
+    } catch (e) {
+      console.error('Use result as original failed:', e)
+    }
+  }
+
+  // 全局快捷键：在 Modified 有结果时按 "d" 触发下载
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName
+      const isTyping = tag === 'INPUT' || tag === 'TEXTAREA'
+      if (isTyping) return
+      if (activeTab === 'modified' && resultImage) {
+        if (e.key.toLowerCase() === 'd') {
+          e.preventDefault()
+          downloadCurrentResult()
+        }
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [activeTab, resultImage])
+
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -95,7 +168,7 @@ export default function RedesignPage() {
   // Load task history on component mount
   useEffect(() => {
     if (isAuthenticated) {
-      loadTaskHistory()
+      loadTaskHistory(1, false)
     }
   }, [isAuthenticated])
 
@@ -121,7 +194,7 @@ export default function RedesignPage() {
   const loadTaskHistory = async (page: number = 1, append: boolean = false) => {
     setIsLoadingHistory(true)
     try {
-      const history = await redesignApiClient.getTaskHistory(page)
+      const history = await redesignApiClient.getTaskHistory(page, 'targeted_redesign')
       if (append) {
         setTaskHistory(prev => [...prev, ...history])
       } else {
@@ -240,10 +313,11 @@ ${prompts[1]}
 ${prompts[2]}
 ${prompts[3]}
 
-输出一张**无模特**的照片级服装概念图，
+输出一张**无模特**的服装图，
 左半部分是服装的正面展示图，
 右半部分是服装的背面展示图，
-背景为(255,255,255)的纯白色。`
+背景为(255,255,255)的纯白色，
+保持输入图片的服装比例`
   }
 
   // 合并原图和画板内容
@@ -1125,7 +1199,7 @@ ${prompts[3]}
                     </TabsContent>
                   <TabsContent value="modified" className="mt-6 h-[480px] p-4">
                     <div className="relative w-full h-full max-w-full mx-auto rounded-lg overflow-hidden border border-border bg-muted/20 flex items-center justify-center">
-                        {isProcessing ? (
+                      {isProcessing ? (
                           <div className="text-center space-y-4">
                             <div className="size-12 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
                             <p className="text-sm text-muted-foreground">Generating modified version...</p>
@@ -1147,6 +1221,29 @@ ${prompts[3]}
                             />
                           </div>
                           
+                          {/* 操作工具条：下载、用作原图 */}
+                          <div className="absolute top-4 right-4 flex gap-2">
+                            <Button size="sm" variant="outline" onClick={downloadCurrentResult} title="Download (D)">
+                              Download
+                            </Button>
+                            {/* Gradient-stroked Refine button without solid fill */}
+                            <button
+                              type="button"
+                              onClick={useResultAsOriginal}
+                              title="Refine"
+                              className="inline-flex items-center rounded-lg border border-transparent px-3 py-1.5 bg-transparent focus:outline-none"
+                              style={{
+                                // Gradient border only; interior stays fully transparent
+                                borderImage: 'linear-gradient(90deg, #0ea5e9, #bae6fd, #ffffff) 1',
+                                borderImageSlice: 1 as any,
+                              }}
+                            >
+                              <span className="bg-gradient-to-r from-sky-400 via-sky-200 to-white bg-clip-text text-transparent text-sm font-medium">
+                                Refine
+                              </span>
+                            </button>
+                          </div>
+
                           {/* 多图片导航 */}
                           {resultImages.length > 1 && (
                             <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
