@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import type React from "react"
 
@@ -31,19 +31,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { CollapsibleHeader } from "@/components/collapsible-header"
 import Image from "next/image"
-import { extractApiClient } from "@/lib/extract-api-client"
-import { useAuth } from "@/contexts/auth-context"
 
 export default function ExtractPage() {
-  const { isAuthenticated, isLoading } = useAuth()
   const [uploadedImage, setUploadedImage] = useState<string | null>(null)
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
   const [extractionMode, setExtractionMode] = useState("full")
   const [processingStep, setProcessingStep] = useState("")
   const [extractedPatterns, setExtractedPatterns] = useState<any[]>([])
-  const [extractedImages, setExtractedImages] = useState<string[]>([])
   const [selectedPattern, setSelectedPattern] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -55,48 +50,38 @@ export default function ExtractPage() {
         setUploadedImage(e.target?.result as string)
       }
       reader.readAsDataURL(file)
-      setUploadedFile(file)
     }
   }
 
   const handleExtract = async () => {
-    if (!uploadedFile) return
+    if (!uploadedImage) return
 
     setIsProcessing(true)
     setProgress(0)
-    setProcessingStep("Submitting extract task...")
 
-    try {
-      const resp = await extractApiClient.submitExtract(uploadedFile)
-      setProgress(25)
-      setProcessingStep("Waiting task to complete...")
+    const steps = [
+      "Analyzing image structure...",
+      "Detecting pattern elements...",
+      "Extracting pattern variations...",
+      "Generating transparent outputs...",
+    ]
 
-      // poll status
-      const maxAttempts = 60
-      const delay = 2000
-      let status
-      for (let i = 0; i < maxAttempts; i++) {
-        status = await extractApiClient.getTaskStatus(resp.taskId)
-        if (status.status === 'SUCCESS' || status.status === 'FAILED') break
-        await new Promise(r => setTimeout(r, delay))
-      }
-
-      if (!status || status.status !== 'SUCCESS') {
-        throw new Error('提取任务失败')
-      }
-
-      setProgress(75)
-      setProcessingStep("Downloading results...")
-      const outputs = await extractApiClient.completeTask(resp.taskId)
-      setExtractedImages(outputs.outputs)
-      setExtractedPatterns(outputs.outputs.map((url, idx) => ({ id: idx + 1, name: `Pattern ${idx + 1}`, type: 'extracted', size: 'auto' })))
-    } catch (e) {
-      console.error('Extract error:', e)
-    } finally {
-      setIsProcessing(false)
-      setProcessingStep("")
-      setProgress(100)
+    for (let i = 0; i < steps.length; i++) {
+      setProcessingStep(steps[i])
+      setProgress((i + 1) * 25)
+      await new Promise((resolve) => setTimeout(resolve, 1500))
     }
+
+    // Simulate extracted patterns
+    setExtractedPatterns([
+      { id: 1, name: "Full Pattern", type: "complete", size: "2048x2048" },
+      { id: 2, name: "Repeating Unit", type: "tile", size: "512x512" },
+      { id: 3, name: "Border Element", type: "border", size: "1024x256" },
+      { id: 4, name: "Corner Detail", type: "corner", size: "256x256" },
+    ])
+
+    setIsProcessing(false)
+    setProcessingStep("")
   }
 
   const extractionModes = [
@@ -333,13 +318,26 @@ export default function ExtractPage() {
 
                     <TabsContent value="extracted" className="mt-6">
                       <div className="space-y-4">
-                        {extractedImages.length > 0 ? (
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                            {extractedImages.map((url, i) => (
-                              <div key={i} className="relative aspect-square rounded-lg overflow-hidden border">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={url} alt={`extracted-${i}`} className="w-full h-full object-cover" />
-                                <Badge className="absolute top-2 right-2 text-xs">extracted</Badge>
+                        {extractedPatterns.length > 0 ? (
+                          <div className="grid grid-cols-2 gap-4">
+                            {extractedPatterns.map((pattern, i) => (
+                              <div
+                                key={pattern.id}
+                                className={`relative aspect-square rounded-lg overflow-hidden border cursor-pointer transition-all ${
+                                  selectedPattern === i
+                                    ? "border-primary ring-2 ring-primary/20"
+                                    : "border-border hover:border-border/60"
+                                }`}
+                                onClick={() => setSelectedPattern(i)}
+                              >
+                                <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
+                                  <div className="text-center">
+                                    <Scissors className="size-8 text-muted-foreground mx-auto mb-2" />
+                                    <p className="text-xs font-medium">{pattern.name}</p>
+                                    <p className="text-xs text-muted-foreground">{pattern.size}</p>
+                                  </div>
+                                </div>
+                                <Badge className="absolute top-2 right-2 text-xs">{pattern.type}</Badge>
                               </div>
                             ))}
                           </div>
@@ -420,3 +418,4 @@ export default function ExtractPage() {
     </div>
   )
 }
+

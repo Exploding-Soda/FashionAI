@@ -406,6 +406,55 @@ async def complete_image_edit(request: Request, current_user = Depends(get_curre
         logger.error(f"完整图片编辑工作流失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"图片编辑失败: {str(e)}")
 
+@router.post("/complete_pattern_extract")
+async def complete_pattern_extract(request: Request, current_user = Depends(get_current_user), db: Session = Depends(get_db)):
+    """
+    完整印花提取工作流：创建任务记录并代理到RunningHub
+    """
+    from ..services.task_record_service import task_record_service
+    import httpx
+
+    logger = get_proxy_logger()
+
+    try:
+        # 获取用户名
+        if settings.is_database_storage():
+            username = current_user.username
+        else:
+            username = current_user["username"]
+
+        logger.info(f"开始完整印花提取工作流: 用户={username}")
+
+        # 代理到RunningHub
+        result = await proxy_to_runninghub(request, "complete_pattern_extract", current_user, db)
+
+        # 处理返回
+        if isinstance(result, JSONResponse):
+            response_data = result.body
+            if isinstance(response_data, bytes):
+                import json
+                response_data = json.loads(response_data.decode('utf-8'))
+
+            if isinstance(response_data, dict) and "taskId" in response_data:
+                runninghub_task_id = response_data["taskId"]
+                tenant_task_id = task_record_service.create_task_record(
+                    username,
+                    runninghub_task_id,
+                    db,
+                    task_type="pattern_extract"
+                )
+
+                response_data["tenantTaskId"] = tenant_task_id
+                logger.info(f"创建tenant任务记录(印花提取): {tenant_task_id}")
+
+                return JSONResponse(content=response_data, status_code=result.status_code)
+
+        return result
+
+    except Exception as e:
+        logger.error(f"完整印花提取工作流失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"印花提取失败: {str(e)}")
+
 @router.post("/tasks/{task_id}/complete")
 async def complete_task_with_storage(
     task_id: str,

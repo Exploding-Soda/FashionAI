@@ -12,6 +12,19 @@ from workflows.workflow_manager import workflow_manager
 
 router = APIRouter()
 
+# 尝试在导入时显式注册新工作流（防止动态扫描失败时缺失）
+try:
+    from workflows.complete_pattern_extract_workflow import (
+        CompletePatternExtractWorkflow,
+    )
+    if "complete_pattern_extract" not in workflow_manager.workflows:
+        workflow_manager.workflows["complete_pattern_extract"] = (
+            CompletePatternExtractWorkflow()
+        )
+except Exception:
+    # 静默忽略，端点内还有一次兜底注册
+    pass
+
 def create_workflow_endpoint(workflow_name: str):
     """为指定工作流创建端点"""
     
@@ -142,3 +155,45 @@ async def complete_image_edit(
     except Exception as e:
         logger.error(f"完整图片编辑工作流执行失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"图片编辑失败: {str(e)}")
+
+@router.post("/complete_pattern_extract")
+async def complete_pattern_extract(
+    file: UploadFile = File(...),
+    fileType: str = Form(default="image"),
+    client = Depends(get_runninghub_client),
+    task_manager = Depends(get_task_manager),
+):
+    """
+    完整印花提取工作流端点：接收图片文件并创建提取任务
+    """
+    logger = get_router_logger()
+    try:
+        logger.info(f"收到完整印花提取请求: 文件={file.filename}, 类型={fileType}")
+
+        # 确保工作流已注册（容错：动态加载失败时，尝试显式注册）
+        try:
+            workflow = workflow_manager.get_workflow("complete_pattern_extract")
+        except Exception:
+            try:
+                from workflows.complete_pattern_extract_workflow import (
+                    CompletePatternExtractWorkflow,
+                )
+                wf = CompletePatternExtractWorkflow()
+                workflow_manager.workflows[wf.name] = wf
+                logger.info("已显式注册工作流 complete_pattern_extract")
+                workflow = wf
+            except Exception as reg_e:
+                logger.error(f"显式注册工作流失败: {reg_e}")
+                raise
+
+        result = await workflow.execute_workflow(
+            file=file,
+            fileType=fileType,
+        )
+
+        logger.info(f"完整印花提取工作流执行成功: {result}")
+        return result
+
+    except Exception as e:
+        logger.error(f"完整印花提取工作流执行失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"印花提取失败: {str(e)}")
