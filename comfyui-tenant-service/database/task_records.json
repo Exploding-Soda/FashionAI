@@ -999,5 +999,30 @@
       "output\\eason\\20250929_140919.png"
     ],
     "error_message": null
+  },
+  {
+    "id": 39,
+    "tenant_task_id": "tenant_b6fde6e46ece4235",
+    "user_id": "eason",
+    "runninghub_task_id": "1972558091965382657",
+    "task_type": "targeted_redesign",
+    "status": "SUCCESS",
+    "created_at": "2025-09-29T07:04:32.310660",
+    "completed_at": "2025-09-29T07:05:15.534087",
+    "result_data": {
+      "taskId": "1972558091965382657",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_vjasz_1759129507.png",
+          "fileType": "png",
+          "taskCostTime": "37",
+          "nodeId": "32"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\eason\\20250929_150513.png"
+    ],
+    "error_message": null
   }
 ]

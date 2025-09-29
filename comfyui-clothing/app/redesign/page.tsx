@@ -1095,7 +1095,7 @@ ${prompts[3]}
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="absolute top-4 right-4 z-10 h-8 w-8 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                            className="absolute bottom-4 left-4 z-10 h-8 w-8 p-0 hover:bg-destructive hover:text-destructive-foreground"
                             onClick={() => {
                               if (imageData.length >= 2) {
                                 // 如果图片数量大于等于2，直接删除当前tab
@@ -1222,7 +1222,7 @@ ${prompts[3]}
                           </div>
                           
                           {/* 操作工具条：下载、用作原图 */}
-                          <div className="absolute top-4 right-4 flex gap-2">
+                          <div className="absolute bottom-4 left-4 flex gap-2">
                             <Button size="sm" variant="outline" onClick={downloadCurrentResult} title="Download (D)">
                               Download
                             </Button>
@@ -1234,11 +1234,11 @@ ${prompts[3]}
                               className="inline-flex items-center rounded-lg border border-transparent px-3 py-1.5 bg-transparent focus:outline-none"
                               style={{
                                 // Gradient border only; interior stays fully transparent
-                                borderImage: 'linear-gradient(90deg, #0ea5e9, #bae6fd, #ffffff) 1',
+                                borderImage: 'linear-gradient(90deg, #0ea5e9, #7dd3fc, #38bdf8) 1',
                                 borderImageSlice: 1 as any,
                               }}
                             >
-                              <span className="bg-gradient-to-r from-sky-400 via-sky-200 to-white bg-clip-text text-transparent text-sm font-medium">
+                              <span className="text-sky-500 text-sm font-medium">
                                 Refine
                               </span>
                             </button>
@@ -1529,7 +1529,7 @@ ${prompts[3]}
             <Button
               variant="outline"
               size="sm"
-              className="absolute top-4 right-4 bg-black/50 text-white border-white/20 hover:bg-black/70"
+              className="absolute bottom-4 left-4 bg-black/50 text-white border-white/20 hover:bg-black/70"
               onClick={closeImageModal}
             >
               ✕
