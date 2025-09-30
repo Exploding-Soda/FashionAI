@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>One API 大模型测试工具</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            background-color: #f4f4f9;
+            color: #333;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            border-radius: 8px;
+        }
+        h1, h2 {
+            text-align: center;
+            color: #444;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .input-group {
+            display: flex;
+            flex-direction: column;
+        }
+        label {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        input[type="text"], input[type="file"], textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box; /* 确保 padding 不会影响宽度 */
+        }
+        input[type="file"] {
+            padding: 3px; /* 微调文件输入框样式 */
+        }
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #response-container {
+            margin-top: 20px;
+            background-color: #fff;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-height: 150px;
+            white-space: pre-wrap; /* 保持换行和空格 */
+            word-wrap: break-word; /* 自动换行 */
+        }
+        /* ***** 新增样式 ***** */
+        #image-preview {
+            max-width: 200px;
+            max-height: 200px;
+            margin-top: 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            display: none; /* 默认隐藏 */
+        }
+    </style>
+</head>
+<body>
+
+    <h1>One API 大模型测试工具</h1>
+
+    <div class="container">
+        <div class="input-group">
+            <label for="api-key">API Key:</label>
+            <input type="text" id="api-key" value="sk-JUC9o60TQZ1WgtgvEeEaC3E0984b41A2A64dE6107e5669Ae">
+        </div>
+        <div class="input-group">
+            <label for="api-endpoint">API Endpoint:</label>
+            <input type="text" id="api-endpoint" value="http://192.168.198.66:3000/v1">
+        </div>
+
+        <h2>功能测试</h2>
+        <div class="input-group">
+            <label for="prompt">输入对话内容:</label>
+            <textarea id="prompt" placeholder="例如：你好，请介绍一下你自己。或者上传图片后问：请描述一下这张图片。"></textarea>
+        </div>
+
+        <!-- ***** 新增的图片上传部分 ***** -->
+        <div class="input-group">
+            <label for="image-input">上传图片 (可选):</label>
+            <input type="file" id="image-input" accept="image/*">
+            <img id="image-preview" src="#" alt="图片预览">
+        </div>
+        <!-- ************************* -->
+
+
+        <div class="button-group">
+            <button id="send-btn">发送对话</button>
+            <button id="models-btn">获取模型列表</button>
+        </div>
+
+        <h2>结果</h2>
+        <pre id="response-container">这里将显示模型的回复或列表...</pre>
+    </div>
+
+    <script>
+        const apiKeyInput = document.getElementById('api-key');
+        const endpointInput = document.getElementById('api-endpoint');
+        const promptInput = document.getElementById('prompt');
+        const sendBtn = document.getElementById('send-btn');
+        const modelsBtn = document.getElementById('models-btn');
+        const responseContainer = document.getElementById('response-container');
+        // ***** 新增元素获取 *****
+        const imageInput = document.getElementById('image-input');
+        const imagePreview = document.getElementById('image-preview');
+
+
+        // ***** 新增功能: 图片预览 *****
+        imageInput.addEventListener('change', () => {
+            const file = imageInput.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    imagePreview.src = e.target.result;
+                    imagePreview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            } else {
+                imagePreview.style.display = 'none';
+            }
+        });
+        
+        // ***** 新增功能: 将文件转为Base64的辅助函数 *****
+        const getBase64 = (file) => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = (error) => reject(error);
+            });
+        };
+
+
+        // 设置按钮状态
+        const setButtonsLoading = (isLoading) => {
+            sendBtn.disabled = isLoading;
+            modelsBtn.disabled = isLoading;
+            sendBtn.textContent = isLoading ? '处理中...' : '发送对话';
+        };
+
+        // ***** 修改后的发送对话请求 *****
+        sendBtn.addEventListener('click', async () => {
+            const apiKey = apiKeyInput.value.trim();
+            const endpoint = endpointInput.value.trim();
+            const prompt = promptInput.value.trim();
+            const imageFile = imageInput.files[0];
+
+            if (!apiKey || !endpoint || !prompt) {
+                alert('请填写 API Key、Endpoint 和对话内容！');
+                return;
+            }
+
+            setButtonsLoading(true);
+            responseContainer.textContent = '正在等待模型响应...';
+
+            try {
+                // 动态构建消息内容
+                let contentPayload;
+                if (imageFile) {
+                    // 如果有图片，构建多模态消息体
+                    const imageUrl = await getBase64(imageFile);
+                    contentPayload = [
+                        { type: 'text', text: prompt },
+                        { type: 'image_url', image_url: { url: imageUrl } }
+                    ];
+                } else {
+                    // 否则，只发送文本
+                    contentPayload = prompt;
+                }
+                
+                const response = await fetch(`${endpoint}/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: "gpt-4.1",
+                        messages: [
+                            {
+                                "role": "user",
+                                "content": contentPayload // 使用动态构建的内容
+                            }
+                        ],
+                        stream: false
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`HTTP 错误! 状态: ${response.status} - ${errorData.error?.message || JSON.stringify(errorData)}`);
+                }
+
+                const data = await response.json();
+                const reply = data.choices[0].message.content;
+                responseContainer.textContent = `模型回复：\n\n${reply}`;
+
+            } catch (error) {
+                console.error('请求失败:', error);
+                responseContainer.textContent = `请求失败:\n\n${error.message}\n\n请检查浏览器控制台(F12)获取更多信息，并确认One API服务是否开启了CORS跨域访问。`;
+            } finally {
+                setButtonsLoading(false);
+                // 清空文件输入，以便下次可以选择相同的文件
+                imageInput.value = '';
+                imagePreview.style.display = 'none';
+            }
+        });
+
+        // 获取模型列表请求 (无变化)
+        modelsBtn.addEventListener('click', async () => {
+            const apiKey = apiKeyInput.value.trim();
+            const endpoint = endpointInput.value.trim();
+
+            if (!apiKey || !endpoint) {
+                alert('请填写 API Key 和 Endpoint！');
+                return;
+            }
+
+            setButtonsLoading(true);
+            responseContainer.textContent = '正在获取模型列表...';
+
+            try {
+                const response = await fetch(`${endpoint}/models`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`HTTP 错误! 状态: ${response.status} - ${errorData.error?.message || JSON.stringify(errorData)}`);
+                }
+
+                const data = await response.json();
+                responseContainer.textContent = JSON.stringify(data.data, null, 2);
+
+            } catch (error) {
+                console.error('请求失败:', error);
+                responseContainer.textContent = `请求失败:\n\n${error.message}\n\n请检查浏览器控制台(F12)获取更多信息，并确认One API服务是否开启了CORS跨域访问。`;
+            } finally {
+                setButtonsLoading(false);
+            }
+        });
+    </script>
+
+</body>
+</html>

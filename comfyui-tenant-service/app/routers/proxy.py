@@ -4,6 +4,7 @@ import httpx
 from sqlalchemy.orm import Session
 from pathlib import Path
 from datetime import datetime
+import json
 from ..models.database import get_db, Tenant
 from ..routers.auth import get_current_user
 from ..services.logger import get_proxy_logger
@@ -184,6 +185,120 @@ async def proxy_to_runninghub(
         logger.error(f"错误类型: {type(e).__name__}")
         logger.error(f"错误详情: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.post("/llm/chat")
+async def proxy_llm_chat(request: Request, current_user = Depends(get_current_user), db: Session = Depends(get_db)):
+    logger = get_proxy_logger()
+
+    if settings.is_database_storage():
+        username = current_user.username
+        tenant_id = current_user.tenant_id
+    else:
+        username = current_user["username"]
+        tenant_id = current_user["tenant_id"]
+
+    logger.info(f"LLM对话代理请求, 用户: {username}")
+
+    if settings.is_json_storage():
+        tenant = db.get_tenant_by_id(tenant_id)
+    else:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    raw_settings = None
+    if settings.is_database_storage():
+        raw_settings = getattr(tenant, "settings", None)
+    else:
+        raw_settings = tenant.get("settings")
+
+    tenant_settings = {}
+    if raw_settings:
+        if isinstance(raw_settings, dict):
+            tenant_settings = raw_settings
+        elif isinstance(raw_settings, str):
+            try:
+                tenant_settings = json.loads(raw_settings)
+            except json.JSONDecodeError:
+                logger.warning("无法解析租户的settings字段，使用默认LLM配置")
+
+    tenant_settings = tenant_settings if isinstance(tenant_settings, dict) else {}
+    llm_nested = tenant_settings.get("llm") if isinstance(tenant_settings.get("llm"), dict) else {}
+
+    llm_service_url = (
+        llm_nested.get("service_url")
+        or llm_nested.get("endpoint")
+        or tenant_settings.get("llm_service_url")
+        or tenant_settings.get("llm_endpoint")
+        or settings.llm_service_url
+    )
+    llm_api_key = (
+        llm_nested.get("api_key")
+        or tenant_settings.get("llm_api_key")
+        or settings.llm_api_key
+    )
+    llm_default_model = (
+        llm_nested.get("default_model")
+        or llm_nested.get("model")
+        or tenant_settings.get("llm_default_model")
+        or settings.llm_default_model
+        or "gpt-4.1"
+    )
+
+    if not llm_service_url or not llm_api_key:
+        logger.error("LLM服务未配置")
+        raise HTTPException(status_code=500, detail="LLM service is not configured")
+
+    target_url = f"{llm_service_url.rstrip('/')}/chat/completions"
+
+    try:
+        payload = await request.json()
+    except Exception as exc:
+        logger.error(f"解析请求JSON失败: {exc}")
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    if not payload.get("model"):
+        payload["model"] = llm_default_model
+
+    headers = {
+        "Authorization": f"Bearer {llm_api_key}",
+        "Content-Type": "application/json"
+    }
+
+    logger.info(f"转发LLM请求到: {target_url}")
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(target_url, json=payload, headers=headers)
+    except httpx.TimeoutException as exc:
+        logger.error(f"LLM服务请求超时: {exc}")
+        raise HTTPException(status_code=504, detail="LLM service timeout")
+    except httpx.HTTPError as exc:
+        logger.error(f"LLM服务请求错误: {exc}")
+        raise HTTPException(status_code=502, detail="LLM service request failed")
+
+    logger.info(f"LLM响应状态码: {response.status_code}")
+
+    if response.status_code >= 400:
+        try:
+            error_payload = response.json()
+        except Exception:
+            error_payload = {"detail": response.text}
+        logger.error(f"LLM服务返回错误: {error_payload}")
+        return JSONResponse(content=error_payload, status_code=response.status_code)
+
+    try:
+        data = response.json()
+    except ValueError:
+        logger.error("LLM响应非JSON格式")
+        return JSONResponse(
+            content={"error": "Invalid response from LLM service", "raw_response": response.text},
+            status_code=response.status_code
+        )
+
+    return JSONResponse(content=data, status_code=response.status_code)
+
 
 @router.post("/upload")
 async def upload_file(request: Request, current_user = Depends(get_current_user), db: Session = Depends(get_db)):
