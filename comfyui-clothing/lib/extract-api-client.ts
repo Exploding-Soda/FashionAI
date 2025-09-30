@@ -11,6 +11,15 @@ export interface ExtractResponse {
   message: string;
 }
 
+export interface PaletteGroup {
+  colors: Array<{ r: number; g: number; b: number }>;
+  note?: string;
+}
+
+export interface PaletteResponse {
+  groups: PaletteGroup[];
+}
+
 export interface TaskStatusResponse {
   taskId: string;
   status: "PENDING" | "SUCCESS" | "FAILED";
@@ -81,6 +90,25 @@ export class ExtractApiClient {
       { method: "POST", headers: this.getFormHeaders(), body: form }
     );
     return res.json();
+  }
+
+  async requestColorPalettes(file: File): Promise<PaletteResponse> {
+    const form = new FormData();
+    form.append("file", file);
+    // 通过LLM对图中配色方案进行分析，仅返回RGB数组分组
+    const prompt = `请作为服装配色顾问，观察我提供的图片中的服装主配色与可衍生的协调配色方案，输出3-6组颜色组合。仅返回JSON，格式：{ "groups": [ { "colors": [ {"r":0-255,"g":0-255,"b":0-255}, ... ] } , ... ] }，不要返回多余说明文字。`;
+    form.append("prompt", prompt);
+
+    const res = await this.makeRequest(
+      `${this.baseUrl}/proxy/llm/palette_from_image`,
+      { method: "POST", headers: this.getFormHeaders(), body: form }
+    );
+    // 兼容后端可能返回字符串或对象
+    const data = await res.json();
+    if (typeof data === "string") {
+      try { return JSON.parse(data) as PaletteResponse } catch { return { groups: [] } }
+    }
+    return data as PaletteResponse;
   }
 
   async getTaskStatus(taskId: string): Promise<TaskStatusResponse> {

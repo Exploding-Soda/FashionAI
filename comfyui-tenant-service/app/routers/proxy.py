@@ -258,6 +258,128 @@ async def proxy_llm_chat(request: Request, current_user = Depends(get_current_us
         logger.error(f"解析请求JSON失败: {exc}")
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
+@router.post("/llm/palette_from_image")
+async def palette_from_image(request: Request, current_user = Depends(get_current_user), db: Session = Depends(get_db)):
+    """
+    接收前端上传的图片与提示词，转发至租户配置的LLM视觉端点，要求返回RGB配色组。
+    返回格式：{ "groups": [ { "colors": [ {r,g,b}, ... ] }, ... ] }
+    """
+    logger = get_proxy_logger()
+
+    # 读取租户LLM配置
+    if settings.is_database_storage():
+        username = current_user.username
+        tenant_id = current_user.tenant_id
+    else:
+        username = current_user["username"]
+        tenant_id = current_user["tenant_id"]
+
+    if settings.is_json_storage():
+        tenant = db.get_tenant_by_id(tenant_id)
+    else:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    raw_settings = getattr(tenant, "settings", None) if settings.is_database_storage() else tenant.get("settings")
+    tenant_settings = {}
+    if raw_settings:
+        if isinstance(raw_settings, dict):
+            tenant_settings = raw_settings
+        elif isinstance(raw_settings, str):
+            try:
+                tenant_settings = json.loads(raw_settings)
+            except json.JSONDecodeError:
+                tenant_settings = {}
+
+    llm_nested = tenant_settings.get("llm") if isinstance(tenant_settings.get("llm"), dict) else {}
+    llm_service_url = (
+        llm_nested.get("service_url")
+        or llm_nested.get("endpoint")
+        or tenant_settings.get("llm_service_url")
+        or tenant_settings.get("llm_endpoint")
+        or settings.llm_service_url
+    )
+    llm_api_key = (
+        llm_nested.get("api_key")
+        or tenant_settings.get("llm_api_key")
+        or settings.llm_api_key
+    )
+    llm_vision_path = llm_nested.get("vision_path") or "/chat/completions"
+
+    if not llm_service_url or not llm_api_key:
+        raise HTTPException(status_code=500, detail="LLM service is not configured")
+
+    # 读取表单：文件+提示词
+    form = await request.form()
+    file = form.get("file")
+    prompt = form.get("prompt") or "请返回RGB配色组的JSON。"
+    if not hasattr(file, 'filename'):
+        raise HTTPException(status_code=400, detail="file is required")
+
+    file_bytes = await file.read()
+
+    # 参考 llm-request-example.html：使用 data URL 的 image_url 方式
+    import base64
+    import mimetypes
+    mime, _ = mimetypes.guess_type(file.filename)
+    mime = mime or "image/png"
+    b64 = base64.b64encode(file_bytes).decode("ascii")
+    data_url = f"data:{mime};base64,{b64}"
+
+    payload = {
+        "model": (llm_nested.get("default_model") or llm_nested.get("model") or tenant_settings.get("llm_default_model") or settings.llm_default_model or "gpt-4.1"),
+        "messages": [
+            {"role": "system", "content": "你是服装配色顾问，只输出JSON，无多余文字。"},
+            {"role": "user", "content": [
+                {"type": "text", "text": str(prompt)},
+                {"type": "image_url", "image_url": {"url": data_url}}
+            ]}
+        ],
+        "response_format": {"type": "json_object"},
+        "stream": False
+    }
+
+    target_url = f"{llm_service_url.rstrip('/')}{llm_vision_path}"
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(
+                target_url,
+                headers={
+                    "Authorization": f"Bearer {llm_api_key}",
+                    "Content-Type": "application/json"
+                },
+                json=payload
+            )
+            text = resp.text
+            # 兼容不同LLM响应结构，尽力提取JSON
+            data = None
+            try:
+                data = resp.json()
+            except Exception:
+                pass
+            # 常见OpenAI样式
+            if isinstance(data, dict):
+                content = None
+                try:
+                    content = data.get("choices", [{}])[0].get("message", {}).get("content")
+                except Exception:
+                    content = None
+                if isinstance(content, str):
+                    try:
+                        return JSONResponse(content=json.loads(content))
+                    except Exception:
+                        return JSONResponse(content={"groups": []})
+            # 回退：直接尝试将文本解析为JSON
+            try:
+                return JSONResponse(content=json.loads(text))
+            except Exception:
+                return JSONResponse(content={"groups": []})
+    except Exception as e:
+        logger.error(f"palette_from_image 调用失败: {e}")
+        raise HTTPException(status_code=500, detail="Palette generation failed")
+
     if not payload.get("model"):
         payload["model"] = llm_default_model
 

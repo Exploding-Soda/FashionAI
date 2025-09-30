@@ -1349,5 +1349,80 @@
       "output\\eason\\20250930_102551.png"
     ],
     "error_message": null
+  },
+  {
+    "id": 53,
+    "tenant_task_id": "tenant_15278bf864094e46",
+    "user_id": "eason",
+    "runninghub_task_id": "1972962343686709249",
+    "task_type": "pattern_extract",
+    "status": "SUCCESS",
+    "created_at": "2025-09-30T09:50:53.081266",
+    "completed_at": "2025-09-30T09:51:24.682753",
+    "result_data": {
+      "taskId": "1972962343686709249",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_iupna_1759225874.png",
+          "fileType": "png",
+          "taskCostTime": "24",
+          "nodeId": "225"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\eason\\20250930_175123.png"
+    ],
+    "error_message": null
+  },
+  {
+    "id": 54,
+    "tenant_task_id": "tenant_af36f0fa1587443b",
+    "user_id": "eason",
+    "runninghub_task_id": "1972963370917896193",
+    "task_type": "pattern_extract",
+    "status": "SUCCESS",
+    "created_at": "2025-09-30T09:54:57.995058",
+    "completed_at": "2025-09-30T09:55:33.017896",
+    "result_data": {
+      "taskId": "1972963370917896193",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_vjleg_1759226125.png",
+          "fileType": "png",
+          "taskCostTime": "31",
+          "nodeId": "225"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\eason\\20250930_175531.png"
+    ],
+    "error_message": null
+  },
+  {
+    "id": 55,
+    "tenant_task_id": "tenant_6294dddf7bc34b5e",
+    "user_id": "eason",
+    "runninghub_task_id": "1972964353504911362",
+    "task_type": "pattern_extract",
+    "status": "SUCCESS",
+    "created_at": "2025-09-30T09:58:52.256793",
+    "completed_at": "2025-09-30T09:59:29.166104",
+    "result_data": {
+      "taskId": "1972964353504911362",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_pqcjp_1759226358.png",
+          "fileType": "png",
+          "taskCostTime": "32",
+          "nodeId": "225"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\eason\\20250930_175928.png"
+    ],
+    "error_message": null
   }
 ]

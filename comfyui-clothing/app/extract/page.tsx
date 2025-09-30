@@ -38,6 +38,7 @@ export default function ExtractPage() {
   const [processingStep, setProcessingStep] = useState("")
   const [extractedPatterns, setExtractedPatterns] = useState<any[]>([])
   const [extractedImages, setExtractedImages] = useState<string[]>([])
+  const [paletteGroups, setPaletteGroups] = useState<Array<{ colors: Array<{ r:number; g:number; b:number }> }>>([])
   const [selectedPattern, setSelectedPattern] = useState<number | null>(null)
   const [activeTab, setActiveTab] = useState("original")
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -64,7 +65,14 @@ export default function ExtractPage() {
     setProcessingStep("Submitting extract task...")
 
     try {
-      const resp = await extractApiClient.submitExtract(uploadedFile)
+      // 并行：提交提取任务 + 发送图片到LLM获取配色
+      const extractPromise = extractApiClient.submitExtract(uploadedFile)
+      const palettePromise = extractApiClient.requestColorPalettes(uploadedFile).catch((e)=>{
+        console.warn('Palette request failed:', e)
+        return { groups: [] }
+      })
+
+      const resp = await extractPromise
       setProgress(25)
       setProcessingStep("Waiting task to complete...")
 
@@ -87,6 +95,10 @@ export default function ExtractPage() {
       const outputs = await extractApiClient.completeTask(resp.taskId)
       setExtractedImages(outputs.outputs)
       setExtractedPatterns(outputs.outputs.map((url, idx) => ({ id: idx + 1, name: `Pattern ${idx + 1}`, type: 'extracted', size: 'auto' })))
+
+      // 等待并设置配色结果
+      const palette = await palettePromise
+      setPaletteGroups(Array.isArray(palette?.groups) ? palette.groups : [])
       setActiveTab("extracted")
       // 刷新任务历史
       loadTaskHistory()
@@ -270,6 +282,24 @@ export default function ExtractPage() {
                             <div className="text-center space-y-2">
                               <AlertCircle className="size-8 text-muted-foreground mx-auto" />
                               <p className="text-sm text-muted-foreground">Extracted patterns will appear here</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {paletteGroups && paletteGroups.length > 0 && (
+                          <div className="mt-6">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-sm font-semibold">Suggested Color Groups</span>
+                              <Badge variant="secondary">RGB</Badge>
+                            </div>
+                            <div className="space-y-3">
+                              {paletteGroups.map((g, gi) => (
+                                <div key={gi} className="flex items-center gap-2">
+                                  {g.colors.slice(0,8).map((c, ci) => (
+                                    <div key={ci} className="w-8 h-8 rounded border" style={{ backgroundColor: `rgb(${c.r}, ${c.g}, ${c.b})` }} title={`rgb(${c.r},${c.g},${c.b})`} />
+                                  ))}
+                                </div>
+                              ))}
                             </div>
                           </div>
                         )}
