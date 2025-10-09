@@ -1,0 +1,57 @@
+*** Begin Patch
+*** Update File: comfyui-clothing/app/extract/page.tsx
+@@
+-                    </Tabs>
+-
+-                    <div className="mt-6 w-full max-w-sm mx-auto">
+-                      <Button onClick={handleExtract} disabled={isProcessing} className="w-full gap-2">
+-                        {isProcessing ? (
+-                          <>
+-                            <Clock className="size-4 animate-spin" />
+-                            Extracting...
+-                          </>
+-                        ) : (
+-                          <>
+-                            <Scissors className="size-4" />
+-                            Extract Patterns
+-                          </>
+-                        )}
+-                      </Button>
+-                    </div>
++                    </Tabs>
++
++                    <div className="mt-6 w-full max-w-sm mx-auto">
++                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
++                        <Button onClick={handleExtract} disabled={isProcessing} className="w-full gap-2">
++                          {isProcessing ? (
++                            <>
++                              <Clock className="size-4 animate-spin" />
++                              Extracting...
++                            </>
++                          ) : (
++                            <>
++                              <Scissors className="size-4" />
++                              Extract Patterns
++                            </>
++                          )}
++                        </Button>
++                        <Button onClick={() => setActiveTab("variants")} variant="secondary" className="w-full gap-2" disabled={!extractedImages.length}>
++                          <Layers className="size-4" />
++                          Generate Variants
++                        </Button>
++                      </div>
++                    </div>
++
++                    {isProcessing && (
++                      <div className="mt-6 rounded-lg border border-primary/50 bg-primary/5 p-6">
++                        <div className="space-y-4">
++                          <div className="flex items-center gap-2">
++                            <div className="size-2 rounded-full bg-primary animate-pulse" />
++                            <span className="text-sm font-medium">{processingStep}</span>
++                          </div>
++                          <Progress value={progress} className="w-full" />
++                          <p className="text-xs text-muted-foreground">Processing time: ~{Math.ceil(((100 - progress) / 25) * 1.5)}s remaining</p>
++                        </div>
++                      </div>
++                    )}
+*** End Patch

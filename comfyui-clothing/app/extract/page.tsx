@@ -51,6 +51,7 @@ export default function ExtractPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [taskHistory, setTaskHistory] = useState<TaskHistoryItem[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+  const variantsSectionRef = useRef<HTMLDivElement | null>(null)
   const clonePaletteGroups = useCallback(
     (groups: Array<{ colors: Array<{ r:number; g:number; b:number }> }>) =>
       groups.map((group) => ({
@@ -139,6 +140,14 @@ export default function ExtractPage() {
     } finally {
       setIsLoadingHistory(false)
     }
+  }
+
+  const handleGenerateVariants = () => {
+    if (!extractedImages.length) return
+    setActiveTab("variants")
+    requestAnimationFrame(() => {
+      variantsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    })
   }
 
   const handlePaletteNavigate = (direction: "prev" | "next") => {
@@ -534,7 +543,7 @@ export default function ExtractPage() {
                         </div>
                       </TabsContent>
 
-                      <TabsContent value="variants" className="mt-6">
+                      <TabsContent value="variants" className="mt-6" ref={variantsSectionRef}>
                         <div className="grid grid-cols-3 gap-4">
                           {[1, 2, 3, 4, 5, 6].map((i) => (
                             <div
@@ -552,19 +561,31 @@ export default function ExtractPage() {
                     </Tabs>
 
                     <div className="mt-6 w-full max-w-sm mx-auto">
-                      <Button onClick={handleExtract} disabled={isProcessing} className="w-full gap-2">
-                        {isProcessing ? (
-                          <>
-                            <Clock className="size-4 animate-spin" />
-                            Extracting...
-                          </>
-                        ) : (
-                          <>
-                            <Scissors className="size-4" />
-                            Extract Patterns
-                          </>
-                        )}
-                      </Button>
+                      {activeTab === "original" && (
+                        <Button onClick={handleExtract} disabled={isProcessing} className="w-full gap-2">
+                          {isProcessing ? (
+                            <>
+                              <Clock className="size-4 animate-spin" />
+                              Extracting...
+                            </>
+                          ) : (
+                            <>
+                              <Scissors className="size-4" />
+                              Extract Patterns
+                            </>
+                          )}
+                        </Button>
+                      )}
+                      {activeTab === "extracted" && (
+                        <Button
+                          onClick={handleGenerateVariants}
+                          disabled={isProcessing || extractedImages.length === 0}
+                          className="w-full gap-2"
+                        >
+                          <Layers className="size-4" />
+                          Generate Variants
+                        </Button>
+                      )}
                     </div>
                   </>
                 ) : (
