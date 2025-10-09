@@ -1725,5 +1725,43 @@
       "output\\eason\\20251009_144838.png"
     ],
     "error_message": null
+  },
+  {
+    "id": 69,
+    "tenant_task_id": "tenant_88c7a9dfe3374122",
+    "user_id": "eason",
+    "runninghub_task_id": "1976192251372183553",
+    "task_type": "pattern_extract",
+    "status": "PENDING",
+    "created_at": "2025-10-09T07:45:23.951529",
+    "completed_at": null,
+    "result_data": null,
+    "storage_paths": null,
+    "error_message": null
+  },
+  {
+    "id": 70,
+    "tenant_task_id": "tenant_5f86118d907c43db",
+    "user_id": "eason",
+    "runninghub_task_id": "1976192759432421378",
+    "task_type": "pattern_extract",
+    "status": "SUCCESS",
+    "created_at": "2025-10-09T07:47:25.034348",
+    "completed_at": "2025-10-09T07:49:23.003918",
+    "result_data": {
+      "taskId": "1976192759432421378",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_qvcyx_1759996144.png",
+          "fileType": "png",
+          "taskCostTime": "46",
+          "nodeId": "225"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\eason\\20251009_154919.png"
+    ],
+    "error_message": null
   }
 ]

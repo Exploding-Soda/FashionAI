@@ -5,6 +5,11 @@ from sqlalchemy.orm import Session
 from pathlib import Path
 from datetime import datetime
 import json
+from io import BytesIO
+try:
+    from PIL import Image
+except ImportError:  # pragma: no cover - optional dependency
+    Image = None
 from ..models.database import get_db, Tenant
 from ..routers.auth import get_current_user
 from ..services.logger import get_proxy_logger
@@ -318,12 +323,69 @@ async def palette_from_image(request: Request, current_user = Depends(get_curren
         raise HTTPException(status_code=400, detail="file is required")
 
     file_bytes = await file.read()
+    original_size = len(file_bytes)
+    compressed_mime = None
+
+    # 如果图片过大（>1MB），尝试压缩到 512KB 以下再发送给 LLM
+    if original_size > 1024 * 1024:
+        if Image is None:
+            logger.warning("palette_from_image: Pillow not installed, cannot compress large image (size=%d bytes)", original_size)
+        else:
+            try:
+                image = Image.open(BytesIO(file_bytes))
+                image = image.convert("RGB")
+
+                target_size = 512 * 1024
+                quality = 95
+                buffer = BytesIO()
+
+                def save_image(img, q):
+                    buffer.seek(0)
+                    buffer.truncate(0)
+                    img.save(buffer, format="JPEG", quality=q, optimize=True)
+
+                working_image = image
+                save_image(working_image, quality)
+
+                while buffer.tell() > target_size and quality > 10:
+                    quality -= 5
+                    save_image(working_image, quality)
+
+                if buffer.tell() > target_size:
+                    # 继续压缩：逐步缩小尺寸
+                    min_side = 128
+                    while buffer.tell() > target_size and (working_image.width > min_side or working_image.height > min_side):
+                        new_width = max(min_side, int(working_image.width * 0.9))
+                        new_height = max(min_side, int(working_image.height * 0.9))
+                        if new_width == working_image.width and new_height == working_image.height:
+                            break
+                        resample = Image.LANCZOS if hasattr(Image, "LANCZOS") else Image.BICUBIC
+                        working_image = working_image.resize((new_width, new_height), resample)
+                        save_image(working_image, max(quality, 40))
+
+                compressed_bytes = buffer.getvalue()
+                if len(compressed_bytes) < original_size and len(compressed_bytes) <= target_size:
+                    logger.info(
+                        "palette_from_image: compressed image from %d bytes to %d bytes (quality=%d)",
+                        original_size,
+                        len(compressed_bytes),
+                        quality,
+                    )
+                    file_bytes = compressed_bytes
+                    compressed_mime = "image/jpeg"
+                else:
+                    logger.info("palette_from_image: compression did not reach target size (original=%d, result=%d)", original_size, len(compressed_bytes))
+            except Exception as comp_err:
+                logger.warning(f"palette_from_image: image compression failed: {comp_err}")
 
     # 参考 llm-request-example.html：使用 data URL 的 image_url 方式
     import base64
     import mimetypes
     mime, _ = mimetypes.guess_type(file.filename)
-    mime = mime or "image/png"
+    if compressed_mime:
+        mime = compressed_mime
+    else:
+        mime = mime or "image/png"
     b64 = base64.b64encode(file_bytes).decode("ascii")
     data_url = f"data:{mime};base64,{b64}"
 
@@ -930,3 +992,4 @@ async def serve_stored_image(file_path: str):
     except Exception as e:
         logger.error(f"提供文件失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to serve file: {str(e)}")
+

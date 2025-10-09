@@ -57,8 +57,11 @@ export default function ExtractPage() {
   const [variantCompositeUrl, setVariantCompositeUrl] = useState<string | null>(null)
   const [isGeneratingVariant, setIsGeneratingVariant] = useState(false)
   const [variantTaskId, setVariantTaskId] = useState<string | null>(null)
+  const [variantResultImages, setVariantResultImages] = useState<string[]>([])
+  const [isLoadingVariantResult, setIsLoadingVariantResult] = useState(false)
   const [variantTaskStatus, setVariantTaskStatus] = useState<"PENDING" | "SUCCESS" | "FAILED" | null>(null)
   const [isLoadingPalette, setIsLoadingPalette] = useState(false)
+  const fetchedVariantResultTaskRef = useRef<string | null>(null)
   const clonePaletteGroups = useCallback(
     (groups: Array<{ colors: Array<{ r:number; g:number; b:number }> }>) =>
       groups.map((group) => ({
@@ -174,6 +177,9 @@ export default function ExtractPage() {
     setActiveTab("extracted")
     setVariantCompositeUrl(null)
     setVariantTaskId(null)
+    setVariantResultImages([])
+    setIsLoadingVariantResult(false)
+    fetchedVariantResultTaskRef.current = null
 
     try {
       setIsLoadingPalette(true)
@@ -276,6 +282,9 @@ export default function ExtractPage() {
       setVariantCompositeUrl(null)
       setVariantTaskId(null)
       setVariantTaskStatus(null)
+      setVariantResultImages([])
+      setIsLoadingVariantResult(false)
+      fetchedVariantResultTaskRef.current = null
       const colors = paletteGroups[selectedPaletteIndex]?.colors || []
       const composite = await generateCompositeImage(extractedImages[0], colors)
       setVariantCompositeUrl(composite)
@@ -469,6 +478,68 @@ export default function ExtractPage() {
       }
     }
   }, [variantTaskId, normalizeStatus, loadTaskHistory])
+
+  React.useEffect(() => {
+    if (!variantTaskId) return
+    if (variantTaskStatus !== "SUCCESS") return
+    if (variantResultImages.length > 0 || isLoadingVariantResult) return
+    if (fetchedVariantResultTaskRef.current === variantTaskId) return
+
+    let cancelled = false
+
+    const loadOutputs = async () => {
+      setIsLoadingVariantResult(true)
+      try {
+        const { outputs } = await extractApiClient.completeTask(variantTaskId)
+        if (!cancelled) {
+          setVariantResultImages(Array.isArray(outputs) ? outputs : [])
+        }
+      } catch (error) {
+        console.error("Variant overlay result error:", error)
+      } finally {
+        if (!cancelled) {
+          setIsLoadingVariantResult(false)
+        }
+      }
+    }
+
+    loadOutputs()
+    fetchedVariantResultTaskRef.current = variantTaskId
+
+    return () => {
+      cancelled = true
+    }
+  }, [variantTaskId, variantTaskStatus, variantResultImages.length, isLoadingVariantResult])
+
+  React.useEffect(() => {
+    if (!variantTaskId) return
+    if (variantTaskStatus !== "SUCCESS") return
+    if (variantResultImages.length > 0 || isLoadingVariantResult) return
+
+    let cancelled = false
+
+    const loadOutputs = async () => {
+      setIsLoadingVariantResult(true)
+      try {
+        const { outputs } = await extractApiClient.completeTask(variantTaskId)
+        if (!cancelled) {
+          setVariantResultImages(Array.isArray(outputs) ? outputs : [])
+        }
+      } catch (error) {
+        console.error("Variant overlay result error:", error)
+      } finally {
+        if (!cancelled) {
+          setIsLoadingVariantResult(false)
+        }
+      }
+    }
+
+    loadOutputs()
+
+    return () => {
+      cancelled = true
+    }
+  }, [variantTaskId, variantTaskStatus, variantResultImages.length, isLoadingVariantResult])
 
   // Settings 部分已简化，仅保留操作按钮
 
@@ -825,6 +896,26 @@ export default function ExtractPage() {
                                 </div>
                               </div>
                             )}
+                            {variantTaskStatus === "SUCCESS" && isLoadingVariantResult && (
+                              <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                                <Clock className="size-3 animate-spin" />
+                                <span>Loading generated outputs…</span>
+                              </div>
+                            )}
+
+                            {variantResultImages.length > 0 && (
+                              <div className="mt-4 space-y-2 text-left">
+                                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">Generated outputs</h4>
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+                                  {variantResultImages.map((url, idx) => (
+                                    <div key={url || idx} className="overflow-hidden rounded-lg border border-border">
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img src={url} alt={`variant-result-${idx}`} className="h-full w-full object-cover" />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ) : extractedImages.length > 0 ? (
@@ -971,3 +1062,6 @@ export default function ExtractPage() {
     </div>
   )
 }
+
+
+
