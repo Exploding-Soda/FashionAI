@@ -2,7 +2,7 @@
 
 import React from "react"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useCallback } from "react"
 import { motion } from "framer-motion"
 import {
   Scissors,
@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Plus,
   X,
+  RefreshCw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -42,6 +43,7 @@ export default function ExtractPage() {
   const [extractedImages, setExtractedImages] = useState<string[]>([])
   const [paletteGroups, setPaletteGroups] = useState<Array<{ colors: Array<{ r:number; g:number; b:number }> }>>([])
   const [selectedPaletteIndex, setSelectedPaletteIndex] = useState(0)
+  const [originalPaletteGroups, setOriginalPaletteGroups] = useState<Array<{ colors: Array<{ r:number; g:number; b:number }> }>>([])
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [draggedColorIndex, setDraggedColorIndex] = useState<number | null>(null)
@@ -49,6 +51,14 @@ export default function ExtractPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [taskHistory, setTaskHistory] = useState<TaskHistoryItem[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+  const clonePaletteGroups = useCallback(
+    (groups: Array<{ colors: Array<{ r:number; g:number; b:number }> }>) =>
+      groups.map((group) => ({
+        ...group,
+        colors: group.colors.map((color) => ({ ...color })),
+      })),
+    [],
+  )
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -105,6 +115,7 @@ export default function ExtractPage() {
       const palette = await palettePromise
       const groups = Array.isArray(palette?.groups) ? palette.groups : []
       setPaletteGroups(groups)
+      setOriginalPaletteGroups(clonePaletteGroups(groups))
       setSelectedPaletteIndex(0)
       setActiveTab("extracted")
       // 刷新任务历史
@@ -178,6 +189,8 @@ export default function ExtractPage() {
   }
 
   const handleRemoveColor = (groupIndex: number, colorIndex: number) => {
+    const confirmed = window.confirm("This will permanently remove the selected color from this palette group. Continue?")
+    if (!confirmed) return
     setPaletteGroups((prevGroups) =>
       prevGroups.map((group, gi) => {
         if (gi !== groupIndex) return group
@@ -217,6 +230,22 @@ export default function ExtractPage() {
   const handleOpenPreview = (url: string) => {
     setPreviewImageUrl(url)
     setIsPreviewOpen(true)
+  }
+
+  const handleResetCurrentPalette = (groupIndex: number) => {
+    const originalGroup = originalPaletteGroups[groupIndex]
+    if (!originalGroup) return
+    const confirmed = window.confirm("Reset this palette group to its original recommended colors? All changes will be lost.")
+    if (!confirmed) return
+    setPaletteGroups((prevGroups) =>
+      prevGroups.map((group, gi) => {
+        if (gi !== groupIndex) return group
+        return {
+          ...group,
+          colors: originalGroup.colors.map((color) => ({ ...color })),
+        }
+      }),
+    )
   }
 
   React.useEffect(() => {
@@ -400,7 +429,7 @@ export default function ExtractPage() {
                                   return (
                                     <Popover key={swatchIdBase}>
                                       <div
-                                        className="relative"
+                                        className="group relative"
                                         onDragOver={(event) => event.preventDefault()}
                                         onDrop={(event) => {
                                           event.preventDefault()
@@ -424,7 +453,7 @@ export default function ExtractPage() {
                                             event.stopPropagation()
                                             handleRemoveColor(selectedPaletteIndex, ci)
                                           }}
-                                          className="absolute -right-2 -top-2 rounded-full border border-border bg-background p-1 text-muted-foreground shadow hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2"
+                                          className="absolute -right-2 -top-2 rounded-full border border-border bg-background p-1 text-muted-foreground shadow opacity-0 pointer-events-none transition group-hover:opacity-100 group-hover:pointer-events-auto hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2"
                                           aria-label={`Remove color ${ci + 1}`}
                                         >
                                           <X className="size-3" />
@@ -478,16 +507,27 @@ export default function ExtractPage() {
                                   )
                                 })}
 
-                                {paletteGroups[selectedPaletteIndex].colors.length < 6 && (
+                                <div className="flex items-center gap-2">
+                                  {paletteGroups[selectedPaletteIndex].colors.length < 6 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAddColor(selectedPaletteIndex)}
+                                      className="flex h-12 w-12 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground shadow-sm transition hover:border-primary/50 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                                      aria-label="Add new color"
+                                    >
+                                      <Plus className="size-5" />
+                                    </button>
+                                  )}
                                   <button
                                     type="button"
-                                    onClick={() => handleAddColor(selectedPaletteIndex)}
-                                    className="flex h-12 w-12 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground shadow-sm transition hover:border-primary/50 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                                    aria-label="Add new color"
+                                    onClick={() => handleResetCurrentPalette(selectedPaletteIndex)}
+                                    className="flex h-12 w-12 items-center justify-center rounded-md border border-border text-green-600 shadow-sm transition hover:border-green-500 hover:bg-green-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    aria-label="Reset colors to recommended palette"
+                                    disabled={!originalPaletteGroups[selectedPaletteIndex]}
                                   >
-                                    <Plus className="size-5" />
+                                    <RefreshCw className="size-5" />
                                   </button>
-                                )}
+                                </div>
                               </div>
                             </div>
                           )}
