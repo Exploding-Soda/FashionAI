@@ -5,18 +5,12 @@ import React from "react"
 import { useState, useRef } from "react"
 import { motion } from "framer-motion"
 import {
-  Upload,
   Scissors,
-  Settings,
   Zap,
   ImageIcon,
   Layers,
-  CheckCircle,
   Clock,
   AlertCircle,
-  Eye,
-  Copy,
-  Trash2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -146,74 +140,8 @@ export default function ExtractPage() {
 
       <div className="container mx-auto px-6 py-8">
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Left Panel - Controls */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Upload Section */}
-            <Card className="border-border/50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Upload className="size-5" />
-                  Upload Model Image
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div
-                  className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  {uploadedImage ? (
-                    <div className="space-y-2">
-                      <CheckCircle className="size-8 text-primary mx-auto" />
-                      <p className="text-sm font-medium">Model image uploaded</p>
-                      <p className="text-xs text-muted-foreground">Click to change image</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <ImageIcon className="size-8 text-muted-foreground mx-auto" />
-                      <p className="text-sm font-medium">Drop model image here</p>
-                      <p className="text-xs text-muted-foreground">or click to browse</p>
-                    </div>
-                  )}
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                />
-              </CardContent>
-            </Card>
-
-            {/* Extraction Settings */}
-            {uploadedImage && (
-              <Card className="border-border/50">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Settings className="size-5" />
-                    Extraction Settings
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Button onClick={handleExtract} disabled={isProcessing} className="w-full gap-2">
-                    {isProcessing ? (
-                      <>
-                        <Clock className="size-4 animate-spin" />
-                        Extracting...
-                      </>
-                    ) : (
-                      <>
-                        <Scissors className="size-4" />
-                        Extract Patterns
-                      </>
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Processing Status */}
-            {isProcessing && (
+          {isProcessing && (
+            <div className="lg:col-span-1 space-y-6">
               <Card className="border-primary/50 bg-primary/5">
                 <CardContent className="pt-6">
                   <div className="space-y-4">
@@ -228,13 +156,11 @@ export default function ExtractPage() {
                   </div>
                 </CardContent>
               </Card>
-            )}
-
-            {/* Extracted Patterns List removed */}
-          </div>
+            </div>
+          )}
 
           {/* Right Panel - Preview */}
-          <div className="lg:col-span-2">
+          <div className={isProcessing ? "lg:col-span-2" : "lg:col-span-3"}>
             <Card className="border-border/50 h-full">
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -246,92 +172,128 @@ export default function ExtractPage() {
                 </div>
               </CardHeader>
               <CardContent className="flex-1">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
                 {uploadedImage ? (
-                  <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                    <TabsList className="grid w-full grid-cols-3">
-                      <TabsTrigger value="original">Original</TabsTrigger>
-                      <TabsTrigger value="extracted">Extracted</TabsTrigger>
-                      <TabsTrigger value="variants">Variants</TabsTrigger>
-                    </TabsList>
+                  <>
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                      <TabsList className="grid w-full grid-cols-3">
+                        <TabsTrigger value="original">Original</TabsTrigger>
+                        <TabsTrigger value="extracted">Extracted</TabsTrigger>
+                        <TabsTrigger value="variants">Variants</TabsTrigger>
+                      </TabsList>
 
-                    <TabsContent value="original" className="mt-6">
-                      <div className="relative aspect-square max-w-md mx-auto rounded-lg overflow-hidden border border-border">
-                        <Image
-                          src={uploadedImage || "/placeholder.svg"}
-                          alt="Original model image"
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent value="extracted" className="mt-6">
-                      <div className="space-y-4">
-                        {extractedImages.length > 0 ? (
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                            {extractedImages.map((url, i) => (
-                              <div key={i} className="relative aspect-square rounded-lg overflow-hidden border">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={url} alt={`extracted-${i}`} className="w-full h-full object-cover" />
-                                <Badge className="absolute top-2 right-2 text-xs">extracted</Badge>
-                              </div>
-                            ))}
+                      <TabsContent value="original" className="mt-6">
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="relative mx-auto block aspect-square w-full max-w-md overflow-hidden rounded-lg border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 group"
+                          aria-label="Change model image"
+                        >
+                          <Image
+                            src={uploadedImage || "/placeholder.svg"}
+                            alt="Original model image"
+                            fill
+                            className="object-cover"
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                            <span className="text-sm font-medium text-white">Click to change image</span>
                           </div>
-                        ) : (
-                          <div className="flex items-center justify-center h-64 border-2 border-dashed border-border rounded-lg">
-                            <div className="text-center space-y-2">
-                              <AlertCircle className="size-8 text-muted-foreground mx-auto" />
-                              <p className="text-sm text-muted-foreground">Extracted patterns will appear here</p>
-                            </div>
-                          </div>
-                        )}
+                        </button>
+                      </TabsContent>
 
-                        {paletteGroups && paletteGroups.length > 0 && (
-                          <div className="mt-6">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-sm font-semibold">Suggested Color Groups</span>
-                              <Badge variant="secondary">RGB</Badge>
-                            </div>
-                            <div className="space-y-3">
-                              {paletteGroups.map((g, gi) => (
-                                <div key={gi} className="flex items-center gap-2">
-                                  {g.colors.slice(0,8).map((c, ci) => (
-                                    <div key={ci} className="w-8 h-8 rounded border" style={{ backgroundColor: `rgb(${c.r}, ${c.g}, ${c.b})` }} title={`rgb(${c.r},${c.g},${c.b})`} />
-                                  ))}
+                      <TabsContent value="extracted" className="mt-6">
+                        <div className="space-y-4">
+                          {extractedImages.length > 0 ? (
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                              {extractedImages.map((url, i) => (
+                                <div key={i} className="relative aspect-square rounded-lg overflow-hidden border">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={url} alt={`extracted-${i}`} className="w-full h-full object-cover" />
+                                  <Badge className="absolute top-2 right-2 text-xs">extracted</Badge>
                                 </div>
                               ))}
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent value="variants" className="mt-6">
-                      <div className="grid grid-cols-3 gap-4">
-                        {[1, 2, 3, 4, 5, 6].map((i) => (
-                          <div
-                            key={i}
-                            className="relative aspect-square rounded-lg overflow-hidden border border-border bg-muted/20 flex items-center justify-center"
-                          >
-                            <div className="text-center">
-                              <Layers className="size-6 text-muted-foreground mx-auto mb-1" />
-                              <p className="text-xs text-muted-foreground">Variant {i}</p>
+                          ) : (
+                            <div className="flex items-center justify-center h-64 border-2 border-dashed border-border rounded-lg">
+                              <div className="text-center space-y-2">
+                                <AlertCircle className="size-8 text-muted-foreground mx-auto" />
+                                <p className="text-sm text-muted-foreground">Extracted patterns will appear here</p>
+                              </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    </TabsContent>
-                  </Tabs>
-                ) : (
-                  <div className="flex items-center justify-center h-96 border-2 border-dashed border-border rounded-lg">
-                    <div className="text-center space-y-4">
-                      <ImageIcon className="size-12 text-muted-foreground mx-auto" />
-                      <div>
-                        <p className="text-lg font-medium">No image uploaded</p>
-                        <p className="text-sm text-muted-foreground">Upload a model image to extract patterns</p>
-                      </div>
+                          )}
+
+                          {paletteGroups && paletteGroups.length > 0 && (
+                            <div className="mt-6">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-sm font-semibold">Suggested Color Groups</span>
+                                <Badge variant="secondary">RGB</Badge>
+                              </div>
+                              <div className="space-y-3">
+                                {paletteGroups.map((g, gi) => (
+                                  <div key={gi} className="flex items-center gap-2">
+                                    {g.colors.slice(0,8).map((c, ci) => (
+                                      <div key={ci} className="w-8 h-8 rounded border" style={{ backgroundColor: `rgb(${c.r}, ${c.g}, ${c.b})` }} title={`rgb(${c.r},${c.g},${c.b})`} />
+                                    ))}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="variants" className="mt-6">
+                        <div className="grid grid-cols-3 gap-4">
+                          {[1, 2, 3, 4, 5, 6].map((i) => (
+                            <div
+                              key={i}
+                              className="relative aspect-square rounded-lg overflow-hidden border border-border bg-muted/20 flex items-center justify-center"
+                            >
+                              <div className="text-center">
+                                <Layers className="size-6 text-muted-foreground mx-auto mb-1" />
+                                <p className="text-xs text-muted-foreground">Variant {i}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </TabsContent>
+                    </Tabs>
+
+                    <div className="mt-6">
+                      <Button onClick={handleExtract} disabled={isProcessing} className="w-full gap-2">
+                        {isProcessing ? (
+                          <>
+                            <Clock className="size-4 animate-spin" />
+                            Extracting...
+                          </>
+                        ) : (
+                          <>
+                            <Scissors className="size-4" />
+                            Extract Patterns
+                          </>
+                        )}
+                      </Button>
                     </div>
-                  </div>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex h-96 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-border text-center space-y-4 transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                    aria-label="Upload model image"
+                  >
+                    <ImageIcon className="size-12 text-muted-foreground mx-auto" />
+                    <div>
+                      <p className="text-lg font-medium">No image uploaded</p>
+                      <p className="text-sm text-muted-foreground">Upload a model image to extract patterns</p>
+                    </div>
+                  </button>
                 )}
               </CardContent>
             </Card>
