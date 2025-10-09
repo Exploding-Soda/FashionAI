@@ -11,6 +11,8 @@ import {
   Layers,
   Clock,
   AlertCircle,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,6 +20,9 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { CollapsibleHeader } from "@/components/collapsible-header"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Slider } from "@/components/ui/slider"
+import { Label } from "@/components/ui/label"
 import Image from "next/image"
 import { extractApiClient } from "@/lib/extract-api-client"
 import type { TaskHistoryItem } from "@/lib/extract-api-client"
@@ -33,7 +38,7 @@ export default function ExtractPage() {
   const [extractedPatterns, setExtractedPatterns] = useState<any[]>([])
   const [extractedImages, setExtractedImages] = useState<string[]>([])
   const [paletteGroups, setPaletteGroups] = useState<Array<{ colors: Array<{ r:number; g:number; b:number }> }>>([])
-  const [selectedPattern, setSelectedPattern] = useState<number | null>(null)
+  const [selectedPaletteIndex, setSelectedPaletteIndex] = useState(0)
   const [activeTab, setActiveTab] = useState("original")
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [taskHistory, setTaskHistory] = useState<TaskHistoryItem[]>([])
@@ -92,7 +97,9 @@ export default function ExtractPage() {
 
       // 等待并设置配色结果
       const palette = await palettePromise
-      setPaletteGroups(Array.isArray(palette?.groups) ? palette.groups : [])
+      const groups = Array.isArray(palette?.groups) ? palette.groups : []
+      setPaletteGroups(groups)
+      setSelectedPaletteIndex(0)
       setActiveTab("extracted")
       // 刷新任务历史
       loadTaskHistory()
@@ -117,11 +124,53 @@ export default function ExtractPage() {
     }
   }
 
+  const handlePaletteNavigate = (direction: "prev" | "next") => {
+    setSelectedPaletteIndex((prev) => {
+      if (paletteGroups.length === 0) return 0
+      const nextIndex = direction === "next" ? prev + 1 : prev - 1
+      if (nextIndex < 0) return paletteGroups.length - 1
+      if (nextIndex >= paletteGroups.length) return 0
+      return nextIndex
+    })
+  }
+
+  const handleColorChannelChange = (
+    groupIndex: number,
+    colorIndex: number,
+    channel: "r" | "g" | "b",
+    value: number,
+  ) => {
+    const clampedValue = Math.max(0, Math.min(255, Math.round(value)))
+    setPaletteGroups((prevGroups) =>
+      prevGroups.map((group, gi) => {
+        if (gi !== groupIndex) return group
+        return {
+          ...group,
+          colors: group.colors.map((color, ci) => {
+            if (ci !== colorIndex) return color
+            return {
+              ...color,
+              [channel]: clampedValue,
+            }
+          }),
+        }
+      }),
+    )
+  }
+
   React.useEffect(() => {
     if (!isLoading && isAuthenticated) {
       loadTaskHistory()
     }
   }, [isLoading, isAuthenticated])
+
+  React.useEffect(() => {
+    if (paletteGroups.length === 0 && selectedPaletteIndex !== 0) {
+      setSelectedPaletteIndex(0)
+    } else if (selectedPaletteIndex >= paletteGroups.length && paletteGroups.length > 0) {
+      setSelectedPaletteIndex(paletteGroups.length - 1)
+    }
+  }, [paletteGroups, selectedPaletteIndex])
 
   // Settings 部分已简化，仅保留操作按钮
 
@@ -208,40 +257,118 @@ export default function ExtractPage() {
                       </TabsContent>
 
                       <TabsContent value="extracted" className="mt-6">
-                        <div className="space-y-4">
+                        <div className="flex flex-col items-center space-y-6">
                           {extractedImages.length > 0 ? (
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            <div className="grid w-full max-w-3xl grid-cols-2 gap-4 justify-items-center md:grid-cols-3">
                               {extractedImages.map((url, i) => (
-                                <div key={i} className="relative aspect-square rounded-lg overflow-hidden border">
+                                <div key={i} className="relative aspect-square w-full max-w-[220px] overflow-hidden rounded-lg border">
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img src={url} alt={`extracted-${i}`} className="w-full h-full object-cover" />
+                                  <img src={url} alt={`extracted-${i}`} className="h-full w-full object-cover" />
                                   <Badge className="absolute top-2 right-2 text-xs">extracted</Badge>
                                 </div>
                               ))}
                             </div>
                           ) : (
-                            <div className="flex items-center justify-center h-64 border-2 border-dashed border-border rounded-lg">
-                              <div className="text-center space-y-2">
+                            <div className="flex h-64 w-full max-w-xl items-center justify-center rounded-lg border-2 border-dashed border-border">
+                              <div className="space-y-2 text-center">
                                 <AlertCircle className="size-8 text-muted-foreground mx-auto" />
                                 <p className="text-sm text-muted-foreground">Extracted patterns will appear here</p>
                               </div>
                             </div>
                           )}
 
-                          {paletteGroups && paletteGroups.length > 0 && (
-                            <div className="mt-6">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-sm font-semibold">Suggested Color Groups</span>
-                                <Badge variant="secondary">RGB</Badge>
-                              </div>
-                              <div className="space-y-3">
-                                {paletteGroups.map((g, gi) => (
-                                  <div key={gi} className="flex items-center gap-2">
-                                    {g.colors.slice(0,8).map((c, ci) => (
-                                      <div key={ci} className="w-8 h-8 rounded border" style={{ backgroundColor: `rgb(${c.r}, ${c.g}, ${c.b})` }} title={`rgb(${c.r},${c.g},${c.b})`} />
-                                    ))}
+                          {paletteGroups.length > 0 && paletteGroups[selectedPaletteIndex] && (
+                            <div className="w-full max-w-xl space-y-4">
+                              <div className="flex items-center justify-center gap-3">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handlePaletteNavigate("prev")}
+                                  aria-label="Previous color group"
+                                  disabled={paletteGroups.length <= 1}
+                                >
+                                  <ChevronLeft className="size-4" />
+                                </Button>
+                                <div className="text-center">
+                                  <div className="flex items-center justify-center gap-2 text-sm font-semibold">
+                                    <span>Suggested Color Groups</span>
+                                    <Badge variant="secondary">RGB</Badge>
                                   </div>
-                                ))}
+                                  <p className="text-xs text-muted-foreground">
+                                    Group {selectedPaletteIndex + 1} of {paletteGroups.length}
+                                  </p>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handlePaletteNavigate("next")}
+                                  aria-label="Next color group"
+                                  disabled={paletteGroups.length <= 1}
+                                >
+                                  <ChevronRight className="size-4" />
+                                </Button>
+                              </div>
+
+                              <div className="flex flex-wrap justify-center gap-4">
+                                {paletteGroups[selectedPaletteIndex].colors.slice(0, 8).map((c, ci) => {
+                                  const swatchIdBase = `color-${selectedPaletteIndex}-${ci}`
+                                  return (
+                                    <Popover key={swatchIdBase}>
+                                      <PopoverTrigger asChild>
+                                        <button
+                                          type="button"
+                                          className="h-12 w-12 rounded-md border shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                                          style={{ backgroundColor: `rgb(${c.r}, ${c.g}, ${c.b})` }}
+                                          aria-label={`Adjust color ${ci + 1}`}
+                                        />
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-64 space-y-4" align="center">
+                                        <div className="space-y-2">
+                                          <div className="text-sm font-semibold">Adjust Color</div>
+                                          <div className="flex items-center gap-3">
+                                            <div
+                                              className="h-10 w-10 rounded border"
+                                              style={{ backgroundColor: `rgb(${c.r}, ${c.g}, ${c.b})` }}
+                                            />
+                                            <div className="text-xs font-medium text-muted-foreground">
+                                              rgb({c.r}, {c.g}, {c.b})
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        {(["r", "g", "b"] as const).map((channel) => {
+                                          const sliderId = `${swatchIdBase}-${channel}`
+                                          const channelValue = c[channel]
+                                          return (
+                                            <div key={channel} className="space-y-2">
+                                              <div className="flex items-center justify-between">
+                                                <Label htmlFor={sliderId} className="uppercase">
+                                                  {channel}
+                                                </Label>
+                                                <span className="text-xs text-muted-foreground">{channelValue}</span>
+                                              </div>
+                                              <Slider
+                                                id={sliderId}
+                                                max={255}
+                                                min={0}
+                                                step={1}
+                                                value={[channelValue]}
+                                                onValueChange={(value) =>
+                                                  handleColorChannelChange(
+                                                    selectedPaletteIndex,
+                                                    ci,
+                                                    channel,
+                                                    value[0] ?? channelValue,
+                                                  )
+                                                }
+                                              />
+                                            </div>
+                                          )
+                                        })}
+                                      </PopoverContent>
+                                    </Popover>
+                                  )
+                                })}
                               </div>
                             </div>
                           )}
@@ -265,7 +392,7 @@ export default function ExtractPage() {
                       </TabsContent>
                     </Tabs>
 
-                    <div className="mt-6">
+                    <div className="mt-6 w-full max-w-sm mx-auto">
                       <Button onClick={handleExtract} disabled={isProcessing} className="w-full gap-2">
                         {isProcessing ? (
                           <>
