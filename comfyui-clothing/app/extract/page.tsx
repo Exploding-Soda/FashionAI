@@ -52,12 +52,73 @@ export default function ExtractPage() {
   const [taskHistory, setTaskHistory] = useState<TaskHistoryItem[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const variantsSectionRef = useRef<HTMLDivElement | null>(null)
+  const [variantCompositeUrl, setVariantCompositeUrl] = useState<string | null>(null)
+  const [isGeneratingVariant, setIsGeneratingVariant] = useState(false)
   const clonePaletteGroups = useCallback(
     (groups: Array<{ colors: Array<{ r:number; g:number; b:number }> }>) =>
       groups.map((group) => ({
         ...group,
         colors: group.colors.map((color) => ({ ...color })),
       })),
+    [],
+  )
+  const generateCompositeImage = useCallback(
+    (baseSrc: string, colors: Array<{ r: number; g: number; b: number }>) =>
+      new Promise<string>((resolve, reject) => {
+        const baseImage = new window.Image()
+        baseImage.crossOrigin = "anonymous"
+        baseImage.onload = () => {
+          if (!colors || colors.length === 0) {
+            resolve(baseSrc)
+            return
+          }
+
+          const baseWidth = baseImage.width
+          const baseHeight = baseImage.height
+          const baseDiagonal = Math.sqrt(baseWidth * baseHeight)
+          const cellSize = Math.max(48, Math.round(baseDiagonal / 5))
+          const columns = Math.min(2, Math.max(1, colors.length))
+          const rows = Math.ceil(colors.length / columns)
+          const overlayWidth = columns * cellSize
+          const overlayHeight = rows * cellSize
+          const gap = Math.round(cellSize * 0.35)
+
+          const canvas = document.createElement("canvas")
+          canvas.width = overlayWidth + gap + baseWidth
+          canvas.height = Math.max(baseHeight, overlayHeight)
+
+          const ctx = canvas.getContext("2d")
+          if (!ctx) {
+            reject(new Error("无法创建画布上下文"))
+            return
+          }
+
+          ctx.fillStyle = "#ffffff"
+          ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+          ctx.fillStyle = "#f9fafb"
+          ctx.strokeStyle = "rgba(15, 23, 42, 0.1)"
+          ctx.lineWidth = 1
+          ctx.fillRect(0, 0, overlayWidth, overlayHeight)
+          ctx.strokeRect(0.5, 0.5, overlayWidth - 1, overlayHeight - 1)
+
+          colors.forEach((color, index) => {
+            const col = index % columns
+            const row = Math.floor(index / columns)
+            const x = col * cellSize
+            const y = row * cellSize
+            ctx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`
+            ctx.fillRect(x, y, cellSize, cellSize)
+            ctx.strokeStyle = "rgba(15, 23, 42, 0.25)"
+            ctx.strokeRect(x + 0.5, y + 0.5, cellSize - 1, cellSize - 1)
+          })
+
+          ctx.drawImage(baseImage, overlayWidth + gap, 0, baseWidth, baseHeight)
+          resolve(canvas.toDataURL("image/png"))
+        }
+        baseImage.onerror = () => reject(new Error("加载基础图像失败"))
+        baseImage.src = baseSrc
+      }),
     [],
   )
 
@@ -142,12 +203,23 @@ export default function ExtractPage() {
     }
   }
 
-  const handleGenerateVariants = () => {
-    if (!extractedImages.length) return
-    setActiveTab("variants")
-    requestAnimationFrame(() => {
-      variantsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
-    })
+  const handleGenerateVariants = async () => {
+    if (!extractedImages.length || isGeneratingVariant) return
+    try {
+      setIsGeneratingVariant(true)
+      setVariantCompositeUrl(null)
+      const colors = paletteGroups[selectedPaletteIndex]?.colors || []
+      const composite = await generateCompositeImage(extractedImages[0], colors)
+      setVariantCompositeUrl(composite)
+      setActiveTab("variants")
+      requestAnimationFrame(() => {
+        variantsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+      })
+    } catch (err) {
+      console.error("Generate variants failed:", err)
+    } finally {
+      setIsGeneratingVariant(false)
+    }
   }
 
   const handlePaletteNavigate = (direction: "prev" | "next") => {
@@ -276,6 +348,10 @@ export default function ExtractPage() {
       setPreviewImageUrl(null)
     }
   }, [isPreviewOpen])
+
+  React.useEffect(() => {
+    setVariantCompositeUrl(null)
+  }, [selectedPaletteIndex, paletteGroups, extractedImages])
 
   // Settings 部分已简化，仅保留操作按钮
 
@@ -544,18 +620,53 @@ export default function ExtractPage() {
                       </TabsContent>
 
                       <TabsContent value="variants" className="mt-6" ref={variantsSectionRef}>
-                        <div className="grid grid-cols-3 gap-4">
-                          {[1, 2, 3, 4, 5, 6].map((i) => (
-                            <div
-                              key={i}
-                              className="relative aspect-square rounded-lg overflow-hidden border border-border bg-muted/20 flex items-center justify-center"
-                            >
-                              <div className="text-center">
-                                <Layers className="size-6 text-muted-foreground mx-auto mb-1" />
-                                <p className="text-xs text-muted-foreground">Variant {i}</p>
+                        <div className="flex flex-col items-center space-y-6">
+                          {isGeneratingVariant ? (
+                            <div className="flex h-64 w-full max-w-xl items-center justify-center rounded-lg border border-border">
+                              <div className="space-y-3 text-center">
+                                <Clock className="size-10 animate-spin text-primary mx-auto" />
+                                <p className="text-sm text-muted-foreground">Generating composite preview…</p>
                               </div>
                             </div>
-                          ))}
+                          ) : variantCompositeUrl ? (
+                            <div className="w-full max-w-3xl space-y-4">
+                              <div className="relative mx-auto overflow-hidden rounded-lg border border-border bg-muted">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={variantCompositeUrl}
+                                  alt="Variant composite preview"
+                                  className="h-auto w-full object-contain"
+                                />
+                              </div>
+                              <div className="mx-auto max-w-2xl text-center text-sm text-muted-foreground">
+                                <div className="flex items-center justify-center gap-2">
+                                  <Layers className="size-4" />
+                                  <span>
+                                    Composite preview merging the extracted image with the active color group tiles positioned at the
+                                    top-left outside the garment. Adjust the palette above and regenerate to refresh this image.
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ) : extractedImages.length > 0 ? (
+                            <div className="flex h-64 w-full max-w-xl items-center justify-center rounded-lg border-2 border-dashed border-border">
+                              <div className="space-y-2 text-center">
+                                <Layers className="size-8 text-muted-foreground mx-auto" />
+                                <p className="text-sm text-muted-foreground">
+                                  Generate a variant preview to see the extracted image merged with the active color group.
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex h-64 w-full max-w-xl items-center justify-center rounded-lg border-2 border-dashed border-border">
+                              <div className="space-y-2 text-center">
+                                <AlertCircle className="size-8 text-muted-foreground mx-auto" />
+                                <p className="text-sm text-muted-foreground">
+                                  Upload an image and run extraction before generating variants.
+                                </p>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </TabsContent>
                     </Tabs>
@@ -579,11 +690,20 @@ export default function ExtractPage() {
                       {activeTab === "extracted" && (
                         <Button
                           onClick={handleGenerateVariants}
-                          disabled={isProcessing || extractedImages.length === 0}
+                          disabled={isProcessing || isGeneratingVariant || extractedImages.length === 0}
                           className="w-full gap-2"
                         >
-                          <Layers className="size-4" />
-                          Generate Variants
+                          {isGeneratingVariant ? (
+                            <>
+                              <Clock className="size-4 animate-spin" />
+                              Generating…
+                            </>
+                          ) : (
+                            <>
+                              <Layers className="size-4" />
+                              Generate Variants
+                            </>
+                          )}
                         </Button>
                       )}
                     </div>
