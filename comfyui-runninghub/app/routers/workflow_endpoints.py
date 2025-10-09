@@ -197,3 +197,49 @@ async def complete_pattern_extract(
     except Exception as e:
         logger.error(f"完整印花提取工作流执行失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"印花提取失败: {str(e)}")
+
+@router.post("/variant_overlay")
+async def variant_overlay(
+    file: Optional[UploadFile] = File(None),
+    imageName: str = Form(default=""),
+    fileType: str = Form(default="image"),
+):
+    """
+    Variant overlay workflow endpoint: accept an image file or existing image name,
+    upload if necessary, and trigger the overlay workflow.
+    """
+    logger = get_router_logger()
+    try:
+        logger.info(f"收到 variant overlay 请求: file={getattr(file, 'filename', None)}, imageName={imageName}")
+
+        # Ensure workflow registered
+        try:
+            workflow = workflow_manager.get_workflow("variant_overlay")
+        except Exception:
+            try:
+                from workflows.variant_overlay_workflow import VariantOverlayWorkflow
+                wf = VariantOverlayWorkflow()
+                workflow_manager.workflows[wf.name] = wf
+                logger.info("已显式注册工作流 variant_overlay")
+                workflow = wf
+            except Exception as reg_e:
+                logger.error(f"显式注册 variant_overlay 工作流失败: {reg_e}")
+                raise
+
+        if not file and not imageName:
+            raise HTTPException(status_code=400, detail="必须提供图片文件或已上传图片名称")
+
+        result = await workflow.execute_workflow(
+            file=file,
+            fileType=fileType,
+            image_name=imageName,
+        )
+
+        logger.info(f"Variant overlay 工作流执行成功: {result}")
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Variant overlay 工作流执行失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Variant overlay 失败: {str(e)}")
