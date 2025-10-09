@@ -72,9 +72,12 @@ export default function ExtractPage() {
   )
   const normalizeStatus = useCallback(
     (status?: string | null): "PENDING" | "SUCCESS" | "FAILED" => {
-      const upper = (status ?? "").toUpperCase()
-      if (upper === "SUCCESS" || upper === "FAILED") {
-        return upper
+      const upper = (status ?? "").trim().toUpperCase()
+      if (["SUCCESS", "SUCCESSFUL", "COMPLETED", "COMPLETE", "DONE", "FINISHED"].includes(upper)) {
+        return "SUCCESS"
+      }
+      if (["FAILED", "FAIL", "ERROR", "CANCELLED", "CANCELED"].includes(upper)) {
+        return "FAILED"
       }
       return "PENDING"
     },
@@ -482,64 +485,34 @@ export default function ExtractPage() {
   React.useEffect(() => {
     if (!variantTaskId) return
     if (variantTaskStatus !== "SUCCESS") return
-    if (variantResultImages.length > 0 || isLoadingVariantResult) return
+    if (variantResultImages.length > 0) return
     if (fetchedVariantResultTaskRef.current === variantTaskId) return
 
-    let cancelled = false
-
-    const loadOutputs = async () => {
-      setIsLoadingVariantResult(true)
-      try {
-        const { outputs } = await extractApiClient.completeTask(variantTaskId)
-        if (!cancelled) {
-          setVariantResultImages(Array.isArray(outputs) ? outputs : [])
-        }
-      } catch (error) {
-        console.error("Variant overlay result error:", error)
-      } finally {
-        if (!cancelled) {
-          setIsLoadingVariantResult(false)
-        }
-      }
-    }
-
-    loadOutputs()
+    let active = true
     fetchedVariantResultTaskRef.current = variantTaskId
-
-    return () => {
-      cancelled = true
-    }
-  }, [variantTaskId, variantTaskStatus, variantResultImages.length, isLoadingVariantResult])
-
-  React.useEffect(() => {
-    if (!variantTaskId) return
-    if (variantTaskStatus !== "SUCCESS") return
-    if (variantResultImages.length > 0 || isLoadingVariantResult) return
-
-    let cancelled = false
+    setIsLoadingVariantResult(true)
 
     const loadOutputs = async () => {
-      setIsLoadingVariantResult(true)
       try {
         const { outputs } = await extractApiClient.completeTask(variantTaskId)
-        if (!cancelled) {
+        if (active) {
           setVariantResultImages(Array.isArray(outputs) ? outputs : [])
         }
       } catch (error) {
         console.error("Variant overlay result error:", error)
       } finally {
-        if (!cancelled) {
+        if (active) {
           setIsLoadingVariantResult(false)
         }
       }
     }
 
-    loadOutputs()
+    void loadOutputs()
 
     return () => {
-      cancelled = true
+      active = false
     }
-  }, [variantTaskId, variantTaskStatus, variantResultImages.length, isLoadingVariantResult])
+  }, [variantTaskId, variantTaskStatus, variantResultImages.length])
 
   // Settings 部分已简化，仅保留操作按钮
 
@@ -903,7 +876,7 @@ export default function ExtractPage() {
                               </div>
                             )}
 
-                            {variantResultImages.length > 0 && (
+                            {variantResultImages.length > 0 ? (
                               <div className="mt-4 space-y-2 text-left">
                                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">Generated outputs</h4>
                                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
@@ -915,6 +888,13 @@ export default function ExtractPage() {
                                   ))}
                                 </div>
                               </div>
+                            ) : (
+                              variantTaskStatus === "SUCCESS" &&
+                              !isLoadingVariantResult && (
+                                <div className="mt-4 text-xs text-muted-foreground">
+                                  未收到生成图片。尝试刷新任务或重新生成变体。
+                                </div>
+                              )
                             )}
                           </div>
                         </div>

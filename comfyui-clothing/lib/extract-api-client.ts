@@ -148,14 +148,35 @@ export class ExtractApiClient {
       { method: "POST", headers: this.getHeaders() }
     );
     const data = await res.json();
-    if (data.storagePaths && Array.isArray(data.storagePaths)) {
-      const localUrls = data.storagePaths.map((p: string) => {
-        const relative = p.replace(/^output[\\\/]/, "");
-        return `${this.baseUrl}/proxy/static/images/${relative.replace(/\\/g, "/")}`;
-      });
-      return { outputs: localUrls };
+    const outputs: string[] = [];
+
+    const storagePaths =
+      (Array.isArray(data.storagePaths) && data.storagePaths) ||
+      (Array.isArray(data.storage_paths) && data.storage_paths) ||
+      [];
+
+    if (storagePaths.length > 0) {
+      for (const rawPath of storagePaths) {
+        if (typeof rawPath !== "string") continue;
+        const relative = rawPath.replace(/^\.?[\\\/]?output[\\\/]/i, "");
+        const normalised = relative.replace(/\\/g, "/");
+        outputs.push(`${this.baseUrl}/proxy/static/images/${normalised}`);
+      }
+    } else if (Array.isArray(data.outputs)) {
+      for (const item of data.outputs) {
+        if (!item) continue;
+        if (typeof item === "string") {
+          outputs.push(item);
+        } else if (typeof item === "object" && "localPath" in item && typeof item.localPath === "string") {
+          const relative = item.localPath.replace(/^\.?[\\\/]?output[\\\/]/i, "");
+          outputs.push(`${this.baseUrl}/proxy/static/images/${relative.replace(/\\/g, "/")}`);
+        } else if (typeof item === "object" && "fileUrl" in item && typeof item.fileUrl === "string") {
+          outputs.push(item.fileUrl);
+        }
+      }
     }
-    return { outputs: [] };
+
+    return { outputs };
   }
 
   async getTaskHistory(page: number = 1, taskType?: string): Promise<TaskHistoryItem[]> {
