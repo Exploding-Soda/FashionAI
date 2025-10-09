@@ -13,6 +13,8 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
+  Plus,
+  X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -24,6 +26,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
 import Image from "next/image"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { extractApiClient } from "@/lib/extract-api-client"
 import type { TaskHistoryItem } from "@/lib/extract-api-client"
 import { useAuth } from "@/contexts/auth-context"
@@ -39,6 +42,9 @@ export default function ExtractPage() {
   const [extractedImages, setExtractedImages] = useState<string[]>([])
   const [paletteGroups, setPaletteGroups] = useState<Array<{ colors: Array<{ r:number; g:number; b:number }> }>>([])
   const [selectedPaletteIndex, setSelectedPaletteIndex] = useState(0)
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [draggedColorIndex, setDraggedColorIndex] = useState<number | null>(null)
   const [activeTab, setActiveTab] = useState("original")
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [taskHistory, setTaskHistory] = useState<TaskHistoryItem[]>([])
@@ -158,6 +164,61 @@ export default function ExtractPage() {
     )
   }
 
+  const handleAddColor = (groupIndex: number) => {
+    setPaletteGroups((prevGroups) =>
+      prevGroups.map((group, gi) => {
+        if (gi !== groupIndex) return group
+        if (group.colors.length >= 6) return group
+        return {
+          ...group,
+          colors: [...group.colors, { r: 128, g: 128, b: 128 }],
+        }
+      }),
+    )
+  }
+
+  const handleRemoveColor = (groupIndex: number, colorIndex: number) => {
+    setPaletteGroups((prevGroups) =>
+      prevGroups.map((group, gi) => {
+        if (gi !== groupIndex) return group
+        return {
+          ...group,
+          colors: group.colors.filter((_, ci) => ci !== colorIndex),
+        }
+      }),
+    )
+  }
+
+  const handleColorDragStart = (colorIndex: number) => {
+    setDraggedColorIndex(colorIndex)
+  }
+
+  const handleColorDragEnd = () => {
+    setDraggedColorIndex(null)
+  }
+
+  const handleColorReorder = (groupIndex: number, targetIndex: number) => {
+    if (draggedColorIndex === null || draggedColorIndex === targetIndex) return
+    setPaletteGroups(prevGroups =>
+      prevGroups.map((group, gi) => {
+        if (gi !== groupIndex) return group
+        const colors = [...group.colors]
+        const [moved] = colors.splice(draggedColorIndex, 1)
+        colors.splice(targetIndex, 0, moved)
+        return {
+          ...group,
+          colors,
+        }
+      }),
+    )
+    setDraggedColorIndex(null)
+  }
+
+  const handleOpenPreview = (url: string) => {
+    setPreviewImageUrl(url)
+    setIsPreviewOpen(true)
+  }
+
   React.useEffect(() => {
     if (!isLoading && isAuthenticated) {
       loadTaskHistory()
@@ -171,6 +232,12 @@ export default function ExtractPage() {
       setSelectedPaletteIndex(paletteGroups.length - 1)
     }
   }, [paletteGroups, selectedPaletteIndex])
+
+  React.useEffect(() => {
+    if (!isPreviewOpen) {
+      setPreviewImageUrl(null)
+    }
+  }, [isPreviewOpen])
 
   // Settings 部分已简化，仅保留操作按钮
 
@@ -257,13 +324,31 @@ export default function ExtractPage() {
                       </TabsContent>
 
                       <TabsContent value="extracted" className="mt-6">
+                        <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+                          <DialogContent className="max-w-3xl border-border/70 bg-background/95">
+                            {previewImageUrl && (
+                              <div className="relative mx-auto aspect-square w-full max-w-2xl overflow-hidden rounded-lg border">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={previewImageUrl} alt="Pattern preview enlarged" className="h-full w-full object-contain" />
+                              </div>
+                            )}
+                          </DialogContent>
+                        </Dialog>
+
                         <div className="flex flex-col items-center space-y-6">
                           {extractedImages.length > 0 ? (
                             <div className="grid w-full max-w-3xl grid-cols-2 gap-4 justify-items-center md:grid-cols-3">
                               {extractedImages.map((url, i) => (
                                 <div key={i} className="relative aspect-square w-full max-w-[220px] overflow-hidden rounded-lg border">
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img src={url} alt={`extracted-${i}`} className="h-full w-full object-cover" />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenPreview(url)}
+                                    className="h-full w-full"
+                                    aria-label={`Preview extracted pattern ${i + 1}`}
+                                  >
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={url} alt={`extracted-${i}`} className="h-full w-full object-cover" />
+                                  </button>
                                   <Badge className="absolute top-2 right-2 text-xs">extracted</Badge>
                                 </div>
                               ))}
@@ -310,18 +395,41 @@ export default function ExtractPage() {
                               </div>
 
                               <div className="flex flex-wrap justify-center gap-4">
-                                {paletteGroups[selectedPaletteIndex].colors.slice(0, 8).map((c, ci) => {
+                                {paletteGroups[selectedPaletteIndex].colors.map((c, ci) => {
                                   const swatchIdBase = `color-${selectedPaletteIndex}-${ci}`
                                   return (
                                     <Popover key={swatchIdBase}>
-                                      <PopoverTrigger asChild>
+                                      <div
+                                        className="relative"
+                                        onDragOver={(event) => event.preventDefault()}
+                                        onDrop={(event) => {
+                                          event.preventDefault()
+                                          handleColorReorder(selectedPaletteIndex, ci)
+                                        }}
+                                      >
+                                        <PopoverTrigger asChild>
+                                          <button
+                                            type="button"
+                                            draggable
+                                            onDragStart={() => handleColorDragStart(ci)}
+                                            onDragEnd={handleColorDragEnd}
+                                            className="h-12 w-12 cursor-grab rounded-md border shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:cursor-grabbing"
+                                            style={{ backgroundColor: `rgb(${c.r}, ${c.g}, ${c.b})` }}
+                                            aria-label={`Adjust color ${ci + 1}`}
+                                          />
+                                        </PopoverTrigger>
                                         <button
                                           type="button"
-                                          className="h-12 w-12 rounded-md border shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                                          style={{ backgroundColor: `rgb(${c.r}, ${c.g}, ${c.b})` }}
-                                          aria-label={`Adjust color ${ci + 1}`}
-                                        />
-                                      </PopoverTrigger>
+                                          onClick={(event) => {
+                                            event.stopPropagation()
+                                            handleRemoveColor(selectedPaletteIndex, ci)
+                                          }}
+                                          className="absolute -right-2 -top-2 rounded-full border border-border bg-background p-1 text-muted-foreground shadow hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2"
+                                          aria-label={`Remove color ${ci + 1}`}
+                                        >
+                                          <X className="size-3" />
+                                        </button>
+                                      </div>
                                       <PopoverContent className="w-64 space-y-4" align="center">
                                         <div className="space-y-2">
                                           <div className="text-sm font-semibold">Adjust Color</div>
@@ -369,6 +477,17 @@ export default function ExtractPage() {
                                     </Popover>
                                   )
                                 })}
+
+                                {paletteGroups[selectedPaletteIndex].colors.length < 6 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddColor(selectedPaletteIndex)}
+                                    className="flex h-12 w-12 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground shadow-sm transition hover:border-primary/50 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                                    aria-label="Add new color"
+                                  >
+                                    <Plus className="size-5" />
+                                  </button>
+                                )}
                               </div>
                             </div>
                           )}

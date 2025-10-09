@@ -1499,5 +1499,30 @@
       "output\\eason\\20251009_095725.png"
     ],
     "error_message": null
+  },
+  {
+    "id": 59,
+    "tenant_task_id": "tenant_c71be699fd5844c0",
+    "user_id": "eason",
+    "runninghub_task_id": "1976106710240796673",
+    "task_type": "pattern_extract",
+    "status": "SUCCESS",
+    "created_at": "2025-10-09T02:05:29.327842",
+    "completed_at": "2025-10-09T02:06:08.734285",
+    "result_data": {
+      "taskId": "1976106710240796673",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_zzeob_1759975558.png",
+          "fileType": "png",
+          "taskCostTime": "35",
+          "nodeId": "225"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\eason\\20251009_100607.png"
+    ],
+    "error_message": null
   }
 ]
