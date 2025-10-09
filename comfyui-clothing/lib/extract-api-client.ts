@@ -111,6 +111,29 @@ export class ExtractApiClient {
     return data as PaletteResponse;
   }
 
+  async submitVariantOverlay(imageDataUrl: string): Promise<ExtractResponse> {
+    const response = await fetch(imageDataUrl);
+    const blob = await response.blob();
+    const extension =
+      blob.type === "image/png"
+        ? "png"
+        : blob.type === "image/jpeg"
+          ? "jpg"
+          : "png";
+    const fileName = `variant-overlay-${Date.now()}.${extension}`;
+    const file = new File([blob], fileName, { type: blob.type || "image/png" });
+
+    const form = new FormData();
+    form.append("file", file);
+    form.append("fileType", "image");
+
+    const res = await this.makeRequest(
+      `${this.baseUrl}/proxy/variant_overlay`,
+      { method: "POST", headers: this.getFormHeaders(), body: form }
+    );
+    return res.json();
+  }
+
   async getTaskStatus(taskId: string): Promise<TaskStatusResponse> {
     const res = await this.makeRequest(
       `${this.baseUrl}/proxy/tasks/${taskId}`,

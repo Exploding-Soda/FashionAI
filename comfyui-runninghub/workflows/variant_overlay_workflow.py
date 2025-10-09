@@ -4,7 +4,7 @@ Variant overlay workflow
 Automatically uploads the provided image file to RunningHub and then triggers
 the AI-App with webappId 1976162186252959746 (nodeId 388).
 """
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 from fastapi import UploadFile
 
@@ -86,7 +86,7 @@ class VariantOverlayWorkflow(Workflow):
 
     async def execute_workflow(
         self,
-        file: UploadFile | None = None,
+        file: Optional[UploadFile] = None,
         fileType: str = "image",
         image_name: str = "",
         **kwargs,
@@ -126,8 +126,13 @@ class VariantOverlayWorkflow(Workflow):
         if not task_id:
             raise ValueError("Failed to create variant overlay task")
 
-        return {
+        response: Dict[str, Any] = {
             "taskId": task_id,
             "status": "created",
             "message": "Variant overlay task has been created",
         }
+
+        if file and hasattr(file, "filename"):
+            response["uploadedFileName"] = file.filename
+
+        return response

@@ -700,6 +700,23 @@ async def complete_pattern_extract(request: Request, current_user = Depends(get_
         logger.error(f"完整印花提取工作流失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"印花提取失败: {str(e)}")
 
+@router.post("/variant_overlay")
+async def variant_overlay(
+    request: Request,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Variant overlay 工作流：代理到 RunningHub
+    """
+    logger = get_proxy_logger()
+    try:
+        result = await proxy_to_runninghub(request, "variant_overlay", current_user, db)
+        return result
+    except Exception as e:
+        logger.error(f"Variant overlay 工作流失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Variant overlay 失败: {str(e)}")
+
 @router.post("/tasks/{task_id}/complete")
 async def complete_task_with_storage(
     task_id: str,

@@ -54,6 +54,7 @@ export default function ExtractPage() {
   const variantsSectionRef = useRef<HTMLDivElement | null>(null)
   const [variantCompositeUrl, setVariantCompositeUrl] = useState<string | null>(null)
   const [isGeneratingVariant, setIsGeneratingVariant] = useState(false)
+  const [variantTaskId, setVariantTaskId] = useState<string | null>(null)
   const clonePaletteGroups = useCallback(
     (groups: Array<{ colors: Array<{ r:number; g:number; b:number }> }>) =>
       groups.map((group) => ({
@@ -73,19 +74,26 @@ export default function ExtractPage() {
             return
           }
 
-          const baseWidth = baseImage.width
-          const baseHeight = baseImage.height
-          const baseDiagonal = Math.sqrt(baseWidth * baseHeight)
-          const cellSize = Math.max(48, Math.round(baseDiagonal / 5))
-          const columns = Math.min(2, Math.max(1, colors.length))
-          const rows = Math.ceil(colors.length / columns)
-          const overlayWidth = columns * cellSize
-          const overlayHeight = rows * cellSize
-          const gap = Math.round(cellSize * 0.35)
+            const MAX_BASE_DIMENSION = 1600
+            const originalWidth = baseImage.width
+            const originalHeight = baseImage.height
+            const scale =
+              Math.max(originalWidth, originalHeight) > MAX_BASE_DIMENSION
+                ? MAX_BASE_DIMENSION / Math.max(originalWidth, originalHeight)
+                : 1
+            const baseWidth = Math.round(originalWidth * scale)
+            const baseHeight = Math.round(originalHeight * scale)
+            const baseDiagonal = Math.sqrt(baseWidth * baseHeight)
+            const cellSize = Math.max(48, Math.round(baseDiagonal / 5))
+            const columns = Math.min(2, Math.max(1, colors.length))
+            const rows = Math.ceil(colors.length / columns)
+            const overlayWidth = columns * cellSize
+            const overlayHeight = rows * cellSize
+            const gap = Math.round(cellSize * 0.35)
 
-          const canvas = document.createElement("canvas")
-          canvas.width = overlayWidth + gap + baseWidth
-          canvas.height = Math.max(baseHeight, overlayHeight)
+            const canvas = document.createElement("canvas")
+            canvas.width = overlayWidth + gap + baseWidth
+            canvas.height = Math.max(baseHeight, overlayHeight)
 
           const ctx = canvas.getContext("2d")
           if (!ctx) {
@@ -113,8 +121,18 @@ export default function ExtractPage() {
             ctx.strokeRect(x + 0.5, y + 0.5, cellSize - 1, cellSize - 1)
           })
 
-          ctx.drawImage(baseImage, overlayWidth + gap, 0, baseWidth, baseHeight)
-          resolve(canvas.toDataURL("image/png"))
+            ctx.drawImage(
+              baseImage,
+              0,
+              0,
+              originalWidth,
+              originalHeight,
+              overlayWidth + gap,
+              0,
+              baseWidth,
+              baseHeight,
+            )
+          resolve(canvas.toDataURL("image/jpeg", 0.9))
         }
         baseImage.onerror = () => reject(new Error("加载基础图像失败"))
         baseImage.src = baseSrc
@@ -208,9 +226,13 @@ export default function ExtractPage() {
     try {
       setIsGeneratingVariant(true)
       setVariantCompositeUrl(null)
+      setVariantTaskId(null)
       const colors = paletteGroups[selectedPaletteIndex]?.colors || []
       const composite = await generateCompositeImage(extractedImages[0], colors)
       setVariantCompositeUrl(composite)
+      const response = await extractApiClient.submitVariantOverlay(composite)
+      setVariantTaskId(response.taskId)
+      void loadTaskHistory()
       setActiveTab("variants")
       requestAnimationFrame(() => {
         variantsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
@@ -351,6 +373,7 @@ export default function ExtractPage() {
 
   React.useEffect(() => {
     setVariantCompositeUrl(null)
+    setVariantTaskId(null)
   }, [selectedPaletteIndex, paletteGroups, extractedImages])
 
   // Settings 部分已简化，仅保留操作按钮
@@ -646,6 +669,11 @@ export default function ExtractPage() {
                                     top-left outside the garment. Adjust the palette above and regenerate to refresh this image.
                                   </span>
                                 </div>
+                                {variantTaskId && (
+                                  <p className="mt-2 text-xs text-muted-foreground/80">
+                                    Task ID: {variantTaskId}
+                                  </p>
+                                )}
                               </div>
                             </div>
                           ) : extractedImages.length > 0 ? (

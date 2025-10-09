@@ -1662,5 +1662,43 @@
       "output\\eason\\20251009_112425.png"
     ],
     "error_message": null
+  },
+  {
+    "id": 66,
+    "tenant_task_id": "tenant_791cc9d56c1b4876",
+    "user_id": "eason",
+    "runninghub_task_id": "1976167020557443073",
+    "task_type": "pattern_extract",
+    "status": "SUCCESS",
+    "created_at": "2025-10-09T06:05:08.420535",
+    "completed_at": "2025-10-09T06:07:08.796201",
+    "result_data": {
+      "taskId": "1976167020557443073",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_eyapq_1759990012.png",
+          "fileType": "png",
+          "taskCostTime": "42",
+          "nodeId": "225"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\eason\\20251009_140706.png"
+    ],
+    "error_message": null
+  },
+  {
+    "id": 67,
+    "tenant_task_id": "tenant_c2e5954d5a8c4f28",
+    "user_id": "eason",
+    "runninghub_task_id": "1976168717526716417",
+    "task_type": "pattern_extract",
+    "status": "PENDING",
+    "created_at": "2025-10-09T06:11:53.004888",
+    "completed_at": null,
+    "result_data": null,
+    "storage_paths": null,
+    "error_message": null
   }
 ]
