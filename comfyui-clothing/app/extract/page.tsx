@@ -49,12 +49,14 @@ export default function ExtractPage() {
   const [draggedColorIndex, setDraggedColorIndex] = useState<number | null>(null)
   const [activeTab, setActiveTab] = useState("original")
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const extractedFileInputRef = useRef<HTMLInputElement>(null)
   const [taskHistory, setTaskHistory] = useState<TaskHistoryItem[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const variantsSectionRef = useRef<HTMLDivElement | null>(null)
   const [variantCompositeUrl, setVariantCompositeUrl] = useState<string | null>(null)
   const [isGeneratingVariant, setIsGeneratingVariant] = useState(false)
   const [variantTaskId, setVariantTaskId] = useState<string | null>(null)
+  const [isLoadingPalette, setIsLoadingPalette] = useState(false)
   const clonePaletteGroups = useCallback(
     (groups: Array<{ colors: Array<{ r:number; g:number; b:number }> }>) =>
       groups.map((group) => ({
@@ -74,26 +76,26 @@ export default function ExtractPage() {
             return
           }
 
-            const MAX_BASE_DIMENSION = 1600
-            const originalWidth = baseImage.width
-            const originalHeight = baseImage.height
-            const scale =
-              Math.max(originalWidth, originalHeight) > MAX_BASE_DIMENSION
-                ? MAX_BASE_DIMENSION / Math.max(originalWidth, originalHeight)
-                : 1
-            const baseWidth = Math.round(originalWidth * scale)
-            const baseHeight = Math.round(originalHeight * scale)
-            const baseDiagonal = Math.sqrt(baseWidth * baseHeight)
-            const cellSize = Math.max(48, Math.round(baseDiagonal / 5))
-            const columns = Math.min(2, Math.max(1, colors.length))
-            const rows = Math.ceil(colors.length / columns)
-            const overlayWidth = columns * cellSize
-            const overlayHeight = rows * cellSize
-            const gap = Math.round(cellSize * 0.35)
+          const MAX_BASE_DIMENSION = 1600
+          const originalWidth = baseImage.width
+          const originalHeight = baseImage.height
+          const scale =
+            Math.max(originalWidth, originalHeight) > MAX_BASE_DIMENSION
+              ? MAX_BASE_DIMENSION / Math.max(originalWidth, originalHeight)
+              : 1
+          const baseWidth = Math.round(originalWidth * scale)
+          const baseHeight = Math.round(originalHeight * scale)
+          const baseDiagonal = Math.sqrt(baseWidth * baseHeight)
+          const cellSize = Math.max(48, Math.round(baseDiagonal / 5))
+          const columns = Math.min(2, Math.max(1, colors.length))
+          const rows = Math.ceil(colors.length / columns)
+          const overlayWidth = columns * cellSize
+          const overlayHeight = rows * cellSize
+          const gap = Math.round(cellSize * 0.35)
 
-            const canvas = document.createElement("canvas")
-            canvas.width = overlayWidth + gap + baseWidth
-            canvas.height = Math.max(baseHeight, overlayHeight)
+          const canvas = document.createElement("canvas")
+          canvas.width = overlayWidth + gap + baseWidth
+          canvas.height = Math.max(baseHeight, overlayHeight)
 
           const ctx = canvas.getContext("2d")
           if (!ctx) {
@@ -121,17 +123,17 @@ export default function ExtractPage() {
             ctx.strokeRect(x + 0.5, y + 0.5, cellSize - 1, cellSize - 1)
           })
 
-            ctx.drawImage(
-              baseImage,
-              0,
-              0,
-              originalWidth,
-              originalHeight,
-              overlayWidth + gap,
-              0,
-              baseWidth,
-              baseHeight,
-            )
+          ctx.drawImage(
+            baseImage,
+            0,
+            0,
+            originalWidth,
+            originalHeight,
+            overlayWidth + gap,
+            0,
+            baseWidth,
+            baseHeight,
+          )
           resolve(canvas.toDataURL("image/jpeg", 0.9))
         }
         baseImage.onerror = () => reject(new Error("加载基础图像失败"))
@@ -149,6 +151,40 @@ export default function ExtractPage() {
       }
       reader.readAsDataURL(file)
       setUploadedFile(file)
+    }
+  }
+
+  const handleExtractedImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const input = event.target
+    const file = input.files?.[0]
+    if (!file) return
+
+    setActiveTab("extracted")
+    setVariantCompositeUrl(null)
+    setVariantTaskId(null)
+
+    try {
+      setIsLoadingPalette(true)
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = () => reject(new Error("读取图片失败"))
+        reader.readAsDataURL(file)
+      })
+
+      setExtractedImages([dataUrl])
+      setPaletteGroups([])
+
+      const palette = await extractApiClient.requestColorPalettes(file)
+      const groups = Array.isArray(palette?.groups) ? palette.groups : []
+      setPaletteGroups(groups)
+      setOriginalPaletteGroups(clonePaletteGroups(groups))
+      setSelectedPaletteIndex(0)
+    } catch (error) {
+      console.error("Extracted upload error:", error)
+    } finally {
+      setIsLoadingPalette(false)
+      input.value = ""
     }
   }
 
@@ -212,7 +248,7 @@ export default function ExtractPage() {
   const loadTaskHistory = async () => {
     setIsLoadingHistory(true)
     try {
-      const history = await extractApiClient.getTaskHistory(1, 'pattern_extract')
+      const history = await extractApiClient.getTaskHistory(1)
       setTaskHistory(history)
     } catch (e) {
       console.error('Load task history error:', e)
@@ -432,323 +468,363 @@ export default function ExtractPage() {
                   onChange={handleImageUpload}
                   className="hidden"
                 />
-                {uploadedImage ? (
-                  <>
-                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                      <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="original">Original</TabsTrigger>
-                        <TabsTrigger value="extracted">Extracted</TabsTrigger>
-                        <TabsTrigger value="variants">Variants</TabsTrigger>
-                      </TabsList>
+                <input
+                  ref={extractedFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleExtractedImageUpload}
+                  className="hidden"
+                />
 
-                      <TabsContent value="original" className="mt-6">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="original">Original</TabsTrigger>
+                    <TabsTrigger value="extracted">Extracted</TabsTrigger>
+                    <TabsTrigger value="variants">Variants</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="original" className="mt-6">
+                    {uploadedImage ? (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="relative mx-auto block aspect-square w-full max-w-md overflow-hidden rounded-lg border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 group"
+                        aria-label="Change model image"
+                      >
+                        <Image
+                          src={uploadedImage || "/placeholder.svg"}
+                          alt="Original model image"
+                          fill
+                          className="object-cover"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                          <span className="text-sm font-medium text-white">Click to change image</span>
+                        </div>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex h-96 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-border text-center space-y-4 transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        aria-label="Upload model image"
+                      >
+                        <ImageIcon className="size-12 text-muted-foreground mx-auto" />
+                        <div>
+                          <p className="text-lg font-medium">Upload a model image</p>
+                          <p className="text-sm text-muted-foreground">Generate extracted patterns and color groups</p>
+                        </div>
+                      </button>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="extracted" className="mt-6">
+                    <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+                      <DialogContent className="max-w-3xl border-border/70 bg-background/95">
+                        {previewImageUrl && (
+                          <div className="relative mx-auto aspect-square w-full max-w-2xl overflow-hidden rounded-lg border">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={previewImageUrl} alt="Pattern preview enlarged" className="h-full w-full object-contain" />
+                          </div>
+                        )}
+                      </DialogContent>
+                    </Dialog>
+
+                    <div className="mx-auto mb-4 flex w-full max-w-3xl justify-end">
+                      <Button variant="outline" size="sm" onClick={() => extractedFileInputRef.current?.click()}>
+                        Upload image
+                      </Button>
+                    </div>
+
+                    <div className="flex flex-col items-center space-y-6">
+                      {extractedImages.length > 0 ? (
+                        <div className="grid w-full max-w-3xl grid-cols-2 gap-4 justify-items-center md:grid-cols-3">
+                          {extractedImages.map((url, i) => (
+                            <div key={i} className="relative aspect-square w-full max-w-[220px] overflow-hidden rounded-lg border">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenPreview(url)}
+                                className="h-full w-full"
+                                aria-label={`Preview extracted pattern ${i + 1}`}
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={url} alt={`extracted-${i}`} className="h-full w-full object-cover" />
+                              </button>
+                              <Badge className="absolute top-2 right-2 text-xs">extracted</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
                         <button
                           type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="relative mx-auto block aspect-square w-full max-w-md overflow-hidden rounded-lg border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 group"
-                          aria-label="Change model image"
+                          onClick={() => extractedFileInputRef.current?.click()}
+                          className="flex h-64 w-full max-w-xl flex-col items-center justify-center rounded-lg border-2 border-dashed border-border text-center space-y-2 transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                          aria-label="Upload extracted image"
                         >
-                          <Image
-                            src={uploadedImage || "/placeholder.svg"}
-                            alt="Original model image"
-                            fill
-                            className="object-cover"
-                          />
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
-                            <span className="text-sm font-medium text-white">Click to change image</span>
+                          <ImageIcon className="size-10 text-muted-foreground mx-auto" />
+                          <div>
+                            <p className="text-sm font-medium">Upload an extracted image</p>
+                            <p className="text-xs text-muted-foreground">Analyze color groups without rerunning extraction</p>
                           </div>
                         </button>
-                      </TabsContent>
+                      )}
 
-                      <TabsContent value="extracted" className="mt-6">
-                        <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-                          <DialogContent className="max-w-3xl border-border/70 bg-background/95">
-                            {previewImageUrl && (
-                              <div className="relative mx-auto aspect-square w-full max-w-2xl overflow-hidden rounded-lg border">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={previewImageUrl} alt="Pattern preview enlarged" className="h-full w-full object-contain" />
+                      {isLoadingPalette && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Clock className="size-4 animate-spin" />
+                          <span>Analyzing color groups…</span>
+                        </div>
+                      )}
+
+                      {paletteGroups.length > 0 && paletteGroups[selectedPaletteIndex] && (
+                        <div className="w-full max-w-xl space-y-4">
+                          <div className="flex items-center justify-center gap-3">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handlePaletteNavigate("prev")}
+                              aria-label="Previous color group"
+                              disabled={paletteGroups.length <= 1}
+                            >
+                              <ChevronLeft className="size-4" />
+                            </Button>
+                            <div className="text-center">
+                              <div className="flex items-center justify-center gap-2 text-sm font-semibold">
+                                <span>Suggested Color Groups</span>
+                                <Badge variant="secondary">RGB</Badge>
                               </div>
-                            )}
-                          </DialogContent>
-                        </Dialog>
+                              <p className="text-xs text-muted-foreground">
+                                Group {selectedPaletteIndex + 1} of {paletteGroups.length}
+                              </p>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handlePaletteNavigate("next")}
+                              aria-label="Next color group"
+                              disabled={paletteGroups.length <= 1}
+                            >
+                              <ChevronRight className="size-4" />
+                            </Button>
+                          </div>
 
-                        <div className="flex flex-col items-center space-y-6">
-                          {extractedImages.length > 0 ? (
-                            <div className="grid w-full max-w-3xl grid-cols-2 gap-4 justify-items-center md:grid-cols-3">
-                              {extractedImages.map((url, i) => (
-                                <div key={i} className="relative aspect-square w-full max-w-[220px] overflow-hidden rounded-lg border">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenPreview(url)}
-                                    className="h-full w-full"
-                                    aria-label={`Preview extracted pattern ${i + 1}`}
+                          <div className="flex flex-wrap justify-center gap-4">
+                            {paletteGroups[selectedPaletteIndex].colors.map((c, ci) => {
+                              const swatchIdBase = `color-${selectedPaletteIndex}-${ci}`
+                              return (
+                                <Popover key={swatchIdBase}>
+                                  <div
+                                    className="group relative"
+                                    onDragOver={(event) => event.preventDefault()}
+                                    onDrop={(event) => {
+                                      event.preventDefault()
+                                      handleColorReorder(selectedPaletteIndex, ci)
+                                    }}
                                   >
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={url} alt={`extracted-${i}`} className="h-full w-full object-cover" />
-                                  </button>
-                                  <Badge className="absolute top-2 right-2 text-xs">extracted</Badge>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="flex h-64 w-full max-w-xl items-center justify-center rounded-lg border-2 border-dashed border-border">
-                              <div className="space-y-2 text-center">
-                                <AlertCircle className="size-8 text-muted-foreground mx-auto" />
-                                <p className="text-sm text-muted-foreground">Extracted patterns will appear here</p>
-                              </div>
-                            </div>
-                          )}
-
-                          {paletteGroups.length > 0 && paletteGroups[selectedPaletteIndex] && (
-                            <div className="w-full max-w-xl space-y-4">
-                              <div className="flex items-center justify-center gap-3">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handlePaletteNavigate("prev")}
-                                  aria-label="Previous color group"
-                                  disabled={paletteGroups.length <= 1}
-                                >
-                                  <ChevronLeft className="size-4" />
-                                </Button>
-                                <div className="text-center">
-                                  <div className="flex items-center justify-center gap-2 text-sm font-semibold">
-                                    <span>Suggested Color Groups</span>
-                                    <Badge variant="secondary">RGB</Badge>
-                                  </div>
-                                  <p className="text-xs text-muted-foreground">
-                                    Group {selectedPaletteIndex + 1} of {paletteGroups.length}
-                                  </p>
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handlePaletteNavigate("next")}
-                                  aria-label="Next color group"
-                                  disabled={paletteGroups.length <= 1}
-                                >
-                                  <ChevronRight className="size-4" />
-                                </Button>
-                              </div>
-
-                              <div className="flex flex-wrap justify-center gap-4">
-                                {paletteGroups[selectedPaletteIndex].colors.map((c, ci) => {
-                                  const swatchIdBase = `color-${selectedPaletteIndex}-${ci}`
-                                  return (
-                                    <Popover key={swatchIdBase}>
-                                      <div
-                                        className="group relative"
-                                        onDragOver={(event) => event.preventDefault()}
-                                        onDrop={(event) => {
-                                          event.preventDefault()
-                                          handleColorReorder(selectedPaletteIndex, ci)
-                                        }}
-                                      >
-                                        <PopoverTrigger asChild>
-                                          <button
-                                            type="button"
-                                            draggable
-                                            onDragStart={() => handleColorDragStart(ci)}
-                                            onDragEnd={handleColorDragEnd}
-                                            className="h-12 w-12 cursor-grab rounded-md border shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:cursor-grabbing"
-                                            style={{ backgroundColor: `rgb(${c.r}, ${c.g}, ${c.b})` }}
-                                            aria-label={`Adjust color ${ci + 1}`}
-                                          />
-                                        </PopoverTrigger>
-                                        <button
-                                          type="button"
-                                          onClick={(event) => {
-                                            event.stopPropagation()
-                                            handleRemoveColor(selectedPaletteIndex, ci)
-                                          }}
-                                          className="absolute -right-2 -top-2 rounded-full border border-border bg-background p-1 text-muted-foreground shadow opacity-0 pointer-events-none transition group-hover:opacity-100 group-hover:pointer-events-auto hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2"
-                                          aria-label={`Remove color ${ci + 1}`}
-                                        >
-                                          <X className="size-3" />
-                                        </button>
-                                      </div>
-                                      <PopoverContent className="w-64 space-y-4" align="center">
-                                        <div className="space-y-2">
-                                          <div className="text-sm font-semibold">Adjust Color</div>
-                                          <div className="flex items-center gap-3">
-                                            <div
-                                              className="h-10 w-10 rounded border"
-                                              style={{ backgroundColor: `rgb(${c.r}, ${c.g}, ${c.b})` }}
-                                            />
-                                            <div className="text-xs font-medium text-muted-foreground">
-                                              rgb({c.r}, {c.g}, {c.b})
-                                            </div>
-                                          </div>
-                                        </div>
-
-                                        {(["r", "g", "b"] as const).map((channel) => {
-                                          const sliderId = `${swatchIdBase}-${channel}`
-                                          const channelValue = c[channel]
-                                          return (
-                                            <div key={channel} className="space-y-2">
-                                              <div className="flex items-center justify-between">
-                                                <Label htmlFor={sliderId} className="uppercase">
-                                                  {channel}
-                                                </Label>
-                                                <span className="text-xs text-muted-foreground">{channelValue}</span>
-                                              </div>
-                                              <Slider
-                                                id={sliderId}
-                                                max={255}
-                                                min={0}
-                                                step={1}
-                                                value={[channelValue]}
-                                                onValueChange={(value) =>
-                                                  handleColorChannelChange(
-                                                    selectedPaletteIndex,
-                                                    ci,
-                                                    channel,
-                                                    value[0] ?? channelValue,
-                                                  )
-                                                }
-                                              />
-                                            </div>
-                                          )
-                                        })}
-                                      </PopoverContent>
-                                    </Popover>
-                                  )
-                                })}
-
-                                <div className="flex items-center gap-2">
-                                  {paletteGroups[selectedPaletteIndex].colors.length < 6 && (
+                                    <PopoverTrigger asChild>
+                                      <button
+                                        type="button"
+                                        draggable
+                                        onDragStart={() => handleColorDragStart(ci)}
+                                        onDragEnd={handleColorDragEnd}
+                                        className="h-12 w-12 cursor-grab rounded-md border shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:cursor-grabbing"
+                                        style={{ backgroundColor: `rgb(${c.r}, ${c.g}, ${c.b})` }}
+                                        aria-label={`Adjust color ${ci + 1}`}
+                                      />
+                                    </PopoverTrigger>
                                     <button
                                       type="button"
-                                      onClick={() => handleAddColor(selectedPaletteIndex)}
-                                      className="flex h-12 w-12 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground shadow-sm transition hover:border-primary/50 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                                      aria-label="Add new color"
+                                      onClick={(event) => {
+                                        event.stopPropagation()
+                                        handleRemoveColor(selectedPaletteIndex, ci)
+                                      }}
+                                      className="absolute -right-2 -top-2 rounded-full border border-border bg-background p-1 text-muted-foreground shadow opacity-0 pointer-events-none transition group-hover:opacity-100 group-hover:pointer-events-auto hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2"
+                                      aria-label={`Remove color ${ci + 1}`}
                                     >
-                                      <Plus className="size-5" />
+                                      <X className="size-3" />
                                     </button>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleResetCurrentPalette(selectedPaletteIndex)}
-                                    className="flex h-12 w-12 items-center justify-center rounded-md border border-border text-green-600 shadow-sm transition hover:border-green-500 hover:bg-green-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    aria-label="Reset colors to recommended palette"
-                                    disabled={!originalPaletteGroups[selectedPaletteIndex]}
-                                  >
-                                    <RefreshCw className="size-5" />
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </TabsContent>
+                                  </div>
+                                  <PopoverContent className="w-64 space-y-4" align="center">
+                                    <div className="space-y-2">
+                                      <div className="text-sm font-semibold">Adjust Color</div>
+                                      <div className="flex items-center gap-3">
+                                        <div
+                                          className="h-10 w-10 rounded border"
+                                          style={{ backgroundColor: `rgb(${c.r}, ${c.g}, ${c.b})` }}
+                                        />
+                                        <div className="text-xs text-muted-foreground">
+                                          rgb({c.r}, {c.g}, {c.b})
+                                        </div>
+                                      </div>
+                                    </div>
 
-                      <TabsContent value="variants" className="mt-6" ref={variantsSectionRef}>
-                        <div className="flex flex-col items-center space-y-6">
-                          {isGeneratingVariant ? (
-                            <div className="flex h-64 w-full max-w-xl items-center justify-center rounded-lg border border-border">
-                              <div className="space-y-3 text-center">
-                                <Clock className="size-10 animate-spin text-primary mx-auto" />
-                                <p className="text-sm text-muted-foreground">Generating composite preview…</p>
-                              </div>
-                            </div>
-                          ) : variantCompositeUrl ? (
-                            <div className="w-full max-w-3xl space-y-4">
-                              <div className="relative mx-auto overflow-hidden rounded-lg border border-border bg-muted">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={variantCompositeUrl}
-                                  alt="Variant composite preview"
-                                  className="h-auto w-full object-contain"
-                                />
-                              </div>
-                              <div className="mx-auto max-w-2xl text-center text-sm text-muted-foreground">
-                                <div className="flex items-center justify-center gap-2">
-                                  <Layers className="size-4" />
-                                  <span>
-                                    Composite preview merging the extracted image with the active color group tiles positioned at the
-                                    top-left outside the garment. Adjust the palette above and regenerate to refresh this image.
-                                  </span>
-                                </div>
-                                {variantTaskId && (
-                                  <p className="mt-2 text-xs text-muted-foreground/80">
-                                    Task ID: {variantTaskId}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          ) : extractedImages.length > 0 ? (
-                            <div className="flex h-64 w-full max-w-xl items-center justify-center rounded-lg border-2 border-dashed border-border">
-                              <div className="space-y-2 text-center">
-                                <Layers className="size-8 text-muted-foreground mx-auto" />
-                                <p className="text-sm text-muted-foreground">
-                                  Generate a variant preview to see the extracted image merged with the active color group.
-                                </p>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex h-64 w-full max-w-xl items-center justify-center rounded-lg border-2 border-dashed border-border">
-                              <div className="space-y-2 text-center">
-                                <AlertCircle className="size-8 text-muted-foreground mx-auto" />
-                                <p className="text-sm text-muted-foreground">
-                                  Upload an image and run extraction before generating variants.
-                                </p>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </TabsContent>
-                    </Tabs>
+                                    {(["r", "g", "b"] as const).map((channel) => {
+                                      const sliderId = `${swatchIdBase}-${channel}`
+                                      const channelValue = c[channel]
+                                      return (
+                                        <div key={channel} className="space-y-2">
+                                          <div className="flex items-center justify-between">
+                                            <Label htmlFor={sliderId} className="uppercase">
+                                              {channel}
+                                            </Label>
+                                            <span className="text-xs text-muted-foreground">{channelValue}</span>
+                                          </div>
+                                          <Slider
+                                            id={sliderId}
+                                            max={255}
+                                            min={0}
+                                            step={1}
+                                            value={[channelValue]}
+                                            onValueChange={(value) =>
+                                              handleColorChannelChange(
+                                                selectedPaletteIndex,
+                                                ci,
+                                                channel,
+                                                value[0] ?? channelValue,
+                                              )
+                                            }
+                                          />
+                                        </div>
+                                      )
+                                    })}
+                                  </PopoverContent>
+                                </Popover>
+                              )
+                            })}
 
-                    <div className="mt-6 w-full max-w-sm mx-auto">
-                      {activeTab === "original" && (
-                        <Button onClick={handleExtract} disabled={isProcessing} className="w-full gap-2">
-                          {isProcessing ? (
-                            <>
-                              <Clock className="size-4 animate-spin" />
-                              Extracting...
-                            </>
-                          ) : (
-                            <>
-                              <Scissors className="size-4" />
-                              Extract Patterns
-                            </>
-                          )}
-                        </Button>
+                            <div className="flex items-center gap-2">
+                              {paletteGroups[selectedPaletteIndex].colors.length < 6 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddColor(selectedPaletteIndex)}
+                                  className="flex h-12 w-12 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground shadow-sm transition hover:border-primary/50 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                                  aria-label="Add new color"
+                                >
+                                  <Plus className="size-5" />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleResetCurrentPalette(selectedPaletteIndex)}
+                                className="flex h-12 w-12 items-center justify-center rounded-md border border-border text-green-600 shadow-sm transition hover:border-green-500 hover:bg-green-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                aria-label="Reset colors to recommended palette"
+                                disabled={!originalPaletteGroups[selectedPaletteIndex]}
+                              >
+                                <RefreshCw className="size-5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
                       )}
-                      {activeTab === "extracted" && (
-                        <Button
-                          onClick={handleGenerateVariants}
-                          disabled={isProcessing || isGeneratingVariant || extractedImages.length === 0}
-                          className="w-full gap-2"
-                        >
-                          {isGeneratingVariant ? (
-                            <>
-                              <Clock className="size-4 animate-spin" />
-                              Generating…
-                            </>
-                          ) : (
-                            <>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="variants" className="mt-6" ref={variantsSectionRef}>
+                    <div className="flex flex-col items-center space-y-6">
+                      {isGeneratingVariant ? (
+                        <div className="flex h-64 w-full max-w-xl items-center justify-center rounded-lg border border-border">
+                          <div className="space-y-3 text-center">
+                            <Clock className="size-10 animate-spin text-primary mx-auto" />
+                            <p className="text-sm text-muted-foreground">Generating composite preview…</p>
+                          </div>
+                        </div>
+                      ) : variantCompositeUrl ? (
+                        <div className="w-full max-w-3xl space-y-4">
+                          <div className="relative mx-auto overflow-hidden rounded-lg border border-border bg-muted">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={variantCompositeUrl}
+                              alt="Variant composite preview"
+                              className="h-auto w-full object-contain"
+                            />
+                          </div>
+                          <div className="mx-auto max-w-2xl text-center text-sm text-muted-foreground">
+                            <div className="flex items-center justify-center gap-2">
                               <Layers className="size-4" />
-                              Generate Variants
-                            </>
-                          )}
-                        </Button>
+                              <span>
+                                Composite preview merging the extracted image with the active color group tiles positioned at the
+                                top-left outside the garment. Adjust the palette above and regenerate to refresh this image.
+                              </span>
+                            </div>
+                            {variantTaskId && (
+                              <p className="mt-2 text-xs text-muted-foreground/80">
+                                Task ID: {variantTaskId}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ) : extractedImages.length > 0 ? (
+                        <div className="flex h-64 w-full max-w-xl items-center justify-center rounded-lg border-2 border-dashed border-border">
+                          <div className="space-y-2 text-center">
+                            <Layers className="size-8 text-muted-foreground mx-auto" />
+                            <p className="text-sm text-muted-foreground">
+                              Generate a variant preview to see the extracted image merged with the active color group.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex h-64 w-full max-w-xl items-center justify-center rounded-lg border-2 border-dashed border-border">
+                          <div className="space-y-2 text-center">
+                            <AlertCircle className="size-8 text-muted-foreground mx-auto" />
+                            <p className="text-sm text-muted-foreground">
+                              Upload an image and run extraction before generating variants.
+                            </p>
+                          </div>
+                        </div>
                       )}
                     </div>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex h-96 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-border text-center space-y-4 transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                    aria-label="Upload model image"
-                  >
-                    <ImageIcon className="size-12 text-muted-foreground mx-auto" />
-                    <div>
-                      <p className="text-lg font-medium">No image uploaded</p>
-                      <p className="text-sm text-muted-foreground">Upload a model image to extract patterns</p>
+                  </TabsContent>
+                </Tabs>
+
+                <div className="mt-6 w-full max-w-sm mx-auto">
+                  {activeTab === "original" && (
+                    <Button onClick={handleExtract} disabled={isProcessing} className="w-full gap-2">
+                      {isProcessing ? (
+                        <>
+                          <Clock className="size-4 animate-spin" />
+                          Extracting...
+                        </>
+                      ) : (
+                        <>
+                          <Scissors className="size-4" />
+                          Extract Patterns
+                        </>
+                      )}
+                    </Button>
+                  )}
+                  {activeTab === "extracted" && (
+                    <Button
+                      onClick={handleGenerateVariants}
+                      disabled={isProcessing || isGeneratingVariant || extractedImages.length === 0}
+                      className="w-full gap-2"
+                    >
+                      {isGeneratingVariant ? (
+                        <>
+                          <Clock className="size-4 animate-spin" />
+                          Generating…
+                        </>
+                      ) : (
+                        <>
+                          <Layers className="size-4" />
+                          Generate Variants
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+
+                {isProcessing && (
+                  <div className="mt-6 rounded-lg border border-primary/50 bg-primary/5 p-6">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <div className="size-2 rounded-full bg-primary animate-pulse" />
+                        <span className="text-sm font-medium">{processingStep}</span>
+                      </div>
+                      <Progress value={progress} className="w-full" />
+                      <p className="text-xs text-muted-foreground">
+                        Processing time: ~{Math.ceil(((100 - progress) / 25) * 1.5)}s remaining
+                      </p>
                     </div>
-                  </button>
+                  </div>
                 )}
               </CardContent>
             </Card>
