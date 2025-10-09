@@ -10,6 +10,7 @@ import {
   ImageIcon,
   Layers,
   Clock,
+  CheckCircle,
   AlertCircle,
   ChevronLeft,
   ChevronRight,
@@ -56,6 +57,7 @@ export default function ExtractPage() {
   const [variantCompositeUrl, setVariantCompositeUrl] = useState<string | null>(null)
   const [isGeneratingVariant, setIsGeneratingVariant] = useState(false)
   const [variantTaskId, setVariantTaskId] = useState<string | null>(null)
+  const [variantTaskStatus, setVariantTaskStatus] = useState<"PENDING" | "SUCCESS" | "FAILED" | null>(null)
   const [isLoadingPalette, setIsLoadingPalette] = useState(false)
   const clonePaletteGroups = useCallback(
     (groups: Array<{ colors: Array<{ r:number; g:number; b:number }> }>) =>
@@ -63,6 +65,16 @@ export default function ExtractPage() {
         ...group,
         colors: group.colors.map((color) => ({ ...color })),
       })),
+    [],
+  )
+  const normalizeStatus = useCallback(
+    (status?: string | null): "PENDING" | "SUCCESS" | "FAILED" => {
+      const upper = (status ?? "").toUpperCase()
+      if (upper === "SUCCESS" || upper === "FAILED") {
+        return upper
+      }
+      return "PENDING"
+    },
     [],
   )
   const generateCompositeImage = useCallback(
@@ -235,7 +247,7 @@ export default function ExtractPage() {
       setSelectedPaletteIndex(0)
       setActiveTab("extracted")
       // 刷新任务历史
-      loadTaskHistory()
+      void loadTaskHistory()
     } catch (e) {
       console.error('Extract error:', e)
     } finally {
@@ -245,17 +257,17 @@ export default function ExtractPage() {
     }
   }
 
-  const loadTaskHistory = async () => {
+  const loadTaskHistory = useCallback(async () => {
     setIsLoadingHistory(true)
     try {
       const history = await extractApiClient.getTaskHistory(1)
       setTaskHistory(history)
     } catch (e) {
-      console.error('Load task history error:', e)
+      console.error("Load task history error:", e)
     } finally {
       setIsLoadingHistory(false)
     }
-  }
+  }, [])
 
   const handleGenerateVariants = async () => {
     if (!extractedImages.length || isGeneratingVariant) return
@@ -263,11 +275,13 @@ export default function ExtractPage() {
       setIsGeneratingVariant(true)
       setVariantCompositeUrl(null)
       setVariantTaskId(null)
+      setVariantTaskStatus(null)
       const colors = paletteGroups[selectedPaletteIndex]?.colors || []
       const composite = await generateCompositeImage(extractedImages[0], colors)
       setVariantCompositeUrl(composite)
       const response = await extractApiClient.submitVariantOverlay(composite)
       setVariantTaskId(response.taskId)
+      setVariantTaskStatus(normalizeStatus(response.status))
       void loadTaskHistory()
       setActiveTab("variants")
       requestAnimationFrame(() => {
@@ -389,9 +403,9 @@ export default function ExtractPage() {
 
   React.useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      loadTaskHistory()
+      void loadTaskHistory()
     }
-  }, [isLoading, isAuthenticated])
+  }, [isLoading, isAuthenticated, loadTaskHistory])
 
   React.useEffect(() => {
     if (paletteGroups.length === 0 && selectedPaletteIndex !== 0) {
@@ -410,7 +424,51 @@ export default function ExtractPage() {
   React.useEffect(() => {
     setVariantCompositeUrl(null)
     setVariantTaskId(null)
+    setVariantTaskStatus(null)
   }, [selectedPaletteIndex, paletteGroups, extractedImages])
+
+  React.useEffect(() => {
+    if (!variantTaskId) return
+    if (typeof window === "undefined") return
+
+    let cancelled = false
+    let attempts = 0
+    const MAX_ATTEMPTS = 200
+    const POLL_INTERVAL = 3000
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+    const poll = async () => {
+      try {
+        const statusResponse = await extractApiClient.getTaskStatus(variantTaskId)
+        const nextStatus = normalizeStatus(statusResponse?.status)
+        if (cancelled) return
+
+        setVariantTaskStatus(nextStatus)
+
+        if (nextStatus === "PENDING" && attempts < MAX_ATTEMPTS) {
+          attempts += 1
+          timeoutId = window.setTimeout(poll, POLL_INTERVAL)
+        } else {
+          void loadTaskHistory()
+        }
+      } catch (error) {
+        console.error("Variant overlay status error:", error)
+        if (!cancelled) {
+          setVariantTaskStatus("FAILED")
+          void loadTaskHistory()
+        }
+      }
+    }
+
+    poll()
+
+    return () => {
+      cancelled = true
+      if (timeoutId) {
+        window.clearTimeout(timeoutId)
+      }
+    }
+  }, [variantTaskId, normalizeStatus, loadTaskHistory])
 
   // Settings 部分已简化，仅保留操作按钮
 
@@ -746,9 +804,26 @@ export default function ExtractPage() {
                               </span>
                             </div>
                             {variantTaskId && (
-                              <p className="mt-2 text-xs text-muted-foreground/80">
-                                Task ID: {variantTaskId}
-                              </p>
+                              <div className="mt-2 space-y-1 text-xs text-muted-foreground/80">
+                                <p>Task ID: {variantTaskId}</p>
+                                <div className="flex items-center justify-center gap-1">
+                                  {variantTaskStatus === "SUCCESS" ? (
+                                    <CheckCircle className="size-3 text-emerald-500" />
+                                  ) : variantTaskStatus === "FAILED" ? (
+                                    <AlertCircle className="size-3 text-destructive" />
+                                  ) : (
+                                    <Clock className="size-3 animate-spin" />
+                                  )}
+                                  <span>
+                                    Status:{" "}
+                                    {variantTaskStatus === "SUCCESS"
+                                      ? "Completed"
+                                      : variantTaskStatus === "FAILED"
+                                        ? "Failed"
+                                        : "Pending"}
+                                  </span>
+                                </div>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -794,7 +869,7 @@ export default function ExtractPage() {
                   {activeTab === "extracted" && (
                     <Button
                       onClick={handleGenerateVariants}
-                      disabled={isProcessing || isGeneratingVariant || extractedImages.length === 0}
+                      disabled={isProcessing || isGeneratingVariant || isLoadingPalette || extractedImages.length === 0 || variantTaskStatus === "PENDING"}
                       className="w-full gap-2"
                     >
                       {isGeneratingVariant ? (
