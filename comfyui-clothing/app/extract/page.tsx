@@ -2,7 +2,7 @@
 
 import React from "react"
 
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef, useCallback, useMemo } from "react"
 import { motion } from "framer-motion"
 import {
   Scissors,
@@ -29,12 +29,16 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
 import Image from "next/image"
+import { useRouter } from "next/navigation"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { extractApiClient } from "@/lib/extract-api-client"
-import type { TaskHistoryItem } from "@/lib/extract-api-client"
+import type { PaletteGroup, StripePatternUnit, TaskHistoryItem } from "@/lib/extract-api-client"
 import { useAuth } from "@/contexts/auth-context"
 
+const STRIPE_STORAGE_KEY = "extract_stripe_payload"
+
 export default function ExtractPage() {
+  const router = useRouter()
   const { isAuthenticated, isLoading } = useAuth()
   const [uploadedImage, setUploadedImage] = useState<string | null>(null)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
@@ -43,9 +47,9 @@ export default function ExtractPage() {
   const [processingStep, setProcessingStep] = useState("")
   const [extractedPatterns, setExtractedPatterns] = useState<any[]>([])
   const [extractedImages, setExtractedImages] = useState<string[]>([])
-  const [paletteGroups, setPaletteGroups] = useState<Array<{ colors: Array<{ r:number; g:number; b:number }> }>>([])
+  const [paletteGroups, setPaletteGroups] = useState<PaletteGroup[]>([])
   const [selectedPaletteIndex, setSelectedPaletteIndex] = useState(0)
-  const [originalPaletteGroups, setOriginalPaletteGroups] = useState<Array<{ colors: Array<{ r:number; g:number; b:number }> }>>([])
+  const [originalPaletteGroups, setOriginalPaletteGroups] = useState<PaletteGroup[]>([])
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [draggedColorIndex, setDraggedColorIndex] = useState<number | null>(null)
@@ -62,15 +66,26 @@ export default function ExtractPage() {
   const [isLoadingVariantResult, setIsLoadingVariantResult] = useState(false)
   const [variantTaskStatus, setVariantTaskStatus] = useState<"PENDING" | "SUCCESS" | "FAILED" | null>(null)
   const [isLoadingPalette, setIsLoadingPalette] = useState(false)
+  const [isStripePattern, setIsStripePattern] = useState(false)
+  const [stripePatternUnit, setStripePatternUnit] = useState<StripePatternUnit[] | null>(null)
   const fetchedVariantResultTaskRef = useRef<string | null>(null)
   const clonePaletteGroups = useCallback(
-    (groups: Array<{ colors: Array<{ r:number; g:number; b:number }> }>) =>
+    (groups: PaletteGroup[]) =>
       groups.map((group) => ({
         ...group,
         colors: group.colors.map((color) => ({ ...color })),
       })),
     [],
   )
+  const currentStripePayload = useMemo(() => {
+    if (!isStripePattern || !stripePatternUnit || stripePatternUnit.length === 0) return null
+    return {
+      stripePatternUnit,
+      paletteGroups,
+      sourceImage: extractedImages[0] ?? null,
+      generatedAt: Date.now(),
+    }
+  }, [isStripePattern, stripePatternUnit, paletteGroups, extractedImages])
   const normalizeStatus = useCallback(
     (status?: string | null): "PENDING" | "SUCCESS" | "FAILED" => {
       const upper = (status ?? "").trim().toUpperCase()
@@ -196,12 +211,18 @@ export default function ExtractPage() {
 
       setExtractedImages([dataUrl])
       setPaletteGroups([])
+      setIsStripePattern(false)
+      setStripePatternUnit(null)
 
       const palette = await extractApiClient.requestColorPalettes(file)
       const groups = Array.isArray(palette?.groups) ? palette.groups : []
       setPaletteGroups(groups)
       setOriginalPaletteGroups(clonePaletteGroups(groups))
       setSelectedPaletteIndex(0)
+      setIsStripePattern(Boolean(palette?.isStripePattern))
+      setStripePatternUnit(
+        Array.isArray(palette?.stripePatternUnit) ? palette.stripePatternUnit.filter(unit => unit && typeof unit.widthPx === "number") : null,
+      )
     } catch (error) {
       console.error("Extracted upload error:", error)
     } finally {
@@ -255,6 +276,10 @@ export default function ExtractPage() {
       setPaletteGroups(groups)
       setOriginalPaletteGroups(clonePaletteGroups(groups))
       setSelectedPaletteIndex(0)
+      setIsStripePattern(Boolean(palette?.isStripePattern))
+      setStripePatternUnit(
+        Array.isArray(palette?.stripePatternUnit) ? palette.stripePatternUnit.filter(unit => unit && typeof unit.widthPx === "number") : null,
+      )
       setActiveTab("extracted")
       // 刷新任务历史
       void loadTaskHistory()
@@ -281,6 +306,17 @@ export default function ExtractPage() {
 
   const handleGenerateVariants = async () => {
     if (!extractedImages.length || isGeneratingVariant) return
+    if (currentStripePayload) {
+      try {
+        if (typeof window !== "undefined") {
+          window.sessionStorage.setItem(STRIPE_STORAGE_KEY, JSON.stringify(currentStripePayload))
+        }
+        router.push("/extract_stripe")
+      } catch (error) {
+        console.error("Navigate to stripe editor failed:", error)
+      }
+      return
+    }
     try {
       setIsGeneratingVariant(true)
       setVariantCompositeUrl(null)
