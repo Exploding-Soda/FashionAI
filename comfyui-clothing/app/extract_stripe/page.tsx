@@ -625,13 +625,7 @@ export default function ExtractStripePage() {
                     预览条纹比例与排列，选择目标色块以弹出细节调整窗。
                   </p>
                   {basePatternPreviewUrl && (
-                    <div className="rounded-lg border border-border/40 bg-muted/10 p-4">
-                      <div className="mb-3 flex items-center justify-between">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          基础循环预览
-                        </p>
-                        <span className="text-[10px] uppercase text-muted-foreground/80">4× Repeat</span>
-                      </div>
+                    <div className="w-full max-w-[180px] space-y-2">
                       <button
                         type="button"
                         onClick={() =>
@@ -640,18 +634,18 @@ export default function ExtractStripePage() {
                             title: "基础循环预览（4×重复）",
                           })
                         }
-                        className="group relative w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+                        className="group block focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
                       >
-                        <div className="aspect-square overflow-hidden rounded-md border border-border/30 bg-background">
+                        <div className="relative aspect-square overflow-hidden rounded-md border border-border/40 bg-background shadow-sm">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={basePatternPreviewUrl}
                             alt="Stripe base pattern preview"
                             className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                           />
-                        </div>
-                        <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-md bg-black/0 transition group-hover:bg-black/25">
-                          <ZoomIn className="size-7 text-white opacity-0 transition group-hover:opacity-100" />
+                          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/25">
+                            <ZoomIn className="size-6 text-white opacity-0 transition group-hover:opacity-100" />
+                          </div>
                         </div>
                       </button>
                     </div>
@@ -701,51 +695,38 @@ export default function ExtractStripePage() {
                     Adjust the stripes above to see live pattern previews in multiple hue families.
                   </div>
                 )}
-                {!isRendering &&
-                  patternVariants.map((variant) => {
-                    const totalHue = globalHueShift + variant.hueShift
-                    return (
-                      <div key={variant.hueShift} className="rounded-lg border border-border/40 bg-muted/5 p-4 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline">{variant.label}</Badge>
-                            <span className="text-xs text-muted-foreground">
-                              Variant shift {variant.hueShift >= 0 ? "+" : ""}
-                              {variant.hueShift}° • Total {totalHue >= 0 ? "+" : ""}
-                              {totalHue}°
-                            </span>
+              {!isRendering &&
+                patternVariants.map((variant) => (
+                  <div key={variant.hueShift} className="rounded-lg border border-border/40 bg-muted/5 p-4">
+                    <div className="grid gap-4 md:grid-cols-4 sm:grid-cols-2">
+                      {variant.previews.map((preview, idx) => (
+                        <button
+                          key={`${variant.hueShift}-${idx}`}
+                          type="button"
+                          onClick={() =>
+                            setPreviewLightbox({
+                              src: preview,
+                              title: `Variation ${idx + 1}`,
+                            })
+                          }
+                          className="group space-y-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+                        >
+                          <div className="relative aspect-square overflow-hidden rounded-md border border-border/40 bg-background shadow-sm">
+                            <img
+                              src={preview}
+                              alt={`Stripe preview variant ${idx + 1}`}
+                              className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                            />
+                            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/25">
+                              <ZoomIn className="size-6 text-white opacity-0 transition group-hover:opacity-100" />
+                            </div>
                           </div>
-                        </div>
-                        <div className="grid gap-4 md:grid-cols-4 sm:grid-cols-2">
-                          {variant.previews.map((preview, idx) => (
-                            <button
-                              key={`${variant.hueShift}-${idx}`}
-                              type="button"
-                              onClick={() =>
-                                setPreviewLightbox({
-                                  src: preview,
-                                  title: `${variant.label} · Variation ${idx + 1}`,
-                                })
-                              }
-                              className="group space-y-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
-                            >
-                              <div className="relative aspect-square overflow-hidden rounded-md border border-border/40 bg-background shadow-sm">
-                                <img
-                                  src={preview}
-                                  alt={`Stripe preview hue ${variant.hueShift} variant ${idx + 1}`}
-                                  className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                                />
-                                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/25">
-                                  <ZoomIn className="size-6 text-white opacity-0 transition group-hover:opacity-100" />
-                                </div>
-                              </div>
-                              <p className="text-xs text-muted-foreground text-center">Variation {idx + 1}</p>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  })}
+                          <p className="text-xs text-muted-foreground text-center">Variation {idx + 1}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
