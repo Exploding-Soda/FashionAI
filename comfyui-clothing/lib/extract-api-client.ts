@@ -16,8 +16,21 @@ export interface PaletteGroup {
   note?: string;
 }
 
+export interface StripePatternUnit {
+  color: { r: number; g: number; b: number };
+  widthPx: number;
+}
+
 export interface PaletteResponse {
   groups: PaletteGroup[];
+  /**
+   * Whether the analysed garment primarily features stripe-style prints.
+   */
+  isStripePattern?: boolean;
+  /**
+   * Minimal repeating stripe unit when `isStripePattern` is true.
+   */
+  stripePatternUnit?: StripePatternUnit[];
 }
 
 export interface TaskStatusResponse {
@@ -95,8 +108,8 @@ export class ExtractApiClient {
   async requestColorPalettes(file: File): Promise<PaletteResponse> {
     const form = new FormData();
     form.append("file", file);
-    // 通过LLM对图中配色方案进行分析，仅返回RGB数组分组
-    const prompt = `请作为服装配色顾问，观察我提供的图片中的服装主配色与可衍生的协调配色方案，输出3-6组颜色组合。仅返回JSON，格式：{ "groups": [ { "colors": [ {"r":0-255,"g":0-255,"b":0-255}, ... ] } , ... ] }，不要返回多余说明文字。`;
+    // 通过LLM对图中配色方案进行分析，仅返回RGB数组分组，并额外判断是否为条纹印花
+    const prompt = `请作为服装配色顾问，观察我提供的图片中的服装主配色与可衍生的协调配色方案，输出3-6组颜色组合，同时判断画面中的印花是否属于条纹式印花。若是条纹印花，请额外给出“最小印花样式”，即单次重复单元内每个色块的RGB颜色与大致宽度（px），用数组表示，例如: [{ "color": {"r":0,"g":0,"b":0}, "widthPx": 50 }, { "color": {"r":255,"g":255,"b":255}, "widthPx": 50 } ]。仅返回JSON，格式：{ "groups": [ { "colors": [ {"r":0-255,"g":0-255,"b":0-255}, ... ] } , ... ], "isStripePattern": true|false, "stripePatternUnit": [ { "color": {"r":0-255,"g":0-255,"b":0-255}, "widthPx": number }, ... ] }，不要返回多余说明文字。若无法确定条纹特征或宽度，请根据视觉倾向返回最接近的判断；若无法给出条纹描述，可返回空数组。`;
     form.append("prompt", prompt);
 
     const res = await this.makeRequest(
