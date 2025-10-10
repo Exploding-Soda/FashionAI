@@ -17,6 +17,7 @@ import {
   Plus,
   X,
   RefreshCw,
+  ZoomIn,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -881,10 +882,21 @@ export default function ExtractPage() {
                                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">Generated outputs</h4>
                                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
                                   {variantResultImages.map((url, idx) => (
-                                    <div key={url || idx} className="overflow-hidden rounded-lg border border-border">
+                                    <button
+                                      key={url || idx}
+                                      type="button"
+                                      onClick={() => handleOpenPreview(url)}
+                                      className="group relative overflow-hidden rounded-lg border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                                    >
                                       {/* eslint-disable-next-line @next/next/no-img-element */}
                                       <img src={url} alt={`variant-result-${idx}`} className="h-full w-full object-cover" />
-                                    </div>
+                                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/60 opacity-0 transition-opacity group-hover:opacity-100">
+                                        <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground">
+                                          <ZoomIn className="size-3" />
+                                          Zoom In
+                                        </div>
+                                      </div>
+                                    </button>
                                   ))}
                                 </div>
                               </div>
