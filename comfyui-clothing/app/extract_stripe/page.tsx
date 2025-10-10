@@ -513,7 +513,7 @@ export default function ExtractStripePage() {
                     <PaintBucket className="size-5 text-primary" />
                     Stripe Unit Palette
                   </CardTitle>
-                  <p className="text-sm text-muted-foreground">Tweak stripe colors and widths, then apply a global hue shift.</p>
+                  <p className="text-sm text-muted-foreground">Tweak stripe colors and widths, then apply a Hue Shift.</p>
                 </div>
                 <Badge variant="secondary" className="uppercase tracking-wide">
                   {stripeUnits.length} stripes
@@ -521,28 +521,50 @@ export default function ExtractStripePage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="rounded-md border border-border/30 bg-muted/5 p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <Label htmlFor="global-hue-slider" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Global Hue Shift
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    {basePatternPreviewUrl && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPreviewLightbox({
+                            src: basePatternPreviewUrl,
+                            title: "基础循环预览（4×重复）",
+                          })
+                        }
+                        className="order-2 group block w-full max-w-[160px] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 sm:order-1"
+                      >
+                        <div className="relative aspect-square overflow-hidden rounded-md border border-border/40 bg-background shadow-sm">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={basePatternPreviewUrl}
+                            alt="Stripe base pattern preview"
+                            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                          />
+                          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/25">
+                            <ZoomIn className="size-6 text-white opacity-0 transition group-hover:opacity-100" />
+                          </div>
+                        </div>
+                      </button>
+                    )}
+                    <div className="order-1 flex w-full flex-col items-end gap-2 sm:order-2 sm:w-auto">
+                      <Label htmlFor="global-hue-slider" className="text-xs font-medium uppercase tracking-wide text-muted-foreground text-right">
+                        Hue
                       </Label>
-                      <p className="text-sm text-muted-foreground">
-                        Adjust overall stripe hue before generating tonal variations.
-                      </p>
-                    </div>
-                    <div className="flex flex-1 items-center gap-3 sm:max-w-md">
-                      <Slider
-                        id="global-hue-slider"
-                        min={-180}
-                        max={180}
-                        step={1}
-                        value={[globalHueShift]}
-                        onValueChange={(value) => setGlobalHueShift(Math.round(value[0] ?? 0))}
-                      />
-                      <span className="w-14 text-right text-xs font-medium text-muted-foreground">
-                        {globalHueShift >= 0 ? "+" : ""}
-                        {globalHueShift}°
-                      </span>
+                      <div className="flex w-full items-center justify-end gap-3 sm:max-w-[220px]">
+                        <Slider
+                          id="global-hue-slider"
+                          min={-180}
+                          max={180}
+                          step={1}
+                          value={[globalHueShift]}
+                          onValueChange={(value) => setGlobalHueShift(Math.round(value[0] ?? 0))}
+                          className="flex-1"
+                        />
+                        <span className="w-14 text-right text-xs font-medium text-muted-foreground">
+                          {globalHueShift >= 0 ? "+" : ""}
+                          {globalHueShift}°
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -624,32 +646,6 @@ export default function ExtractStripePage() {
                     <Sparkles className="size-3.5 text-primary" />
                     预览条纹比例与排列，选择目标色块以弹出细节调整窗。
                   </p>
-                  {basePatternPreviewUrl && (
-                    <div className="w-full max-w-[180px] space-y-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setPreviewLightbox({
-                            src: basePatternPreviewUrl,
-                            title: "基础循环预览（4×重复）",
-                          })
-                        }
-                        className="group block focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
-                      >
-                        <div className="relative aspect-square overflow-hidden rounded-md border border-border/40 bg-background shadow-sm">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={basePatternPreviewUrl}
-                            alt="Stripe base pattern preview"
-                            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                          />
-                          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/25">
-                            <ZoomIn className="size-6 text-white opacity-0 transition group-hover:opacity-100" />
-                          </div>
-                        </div>
-                      </button>
-                    </div>
-                  )}
                 </div>
               </CardContent>
             </Card>
@@ -849,3 +845,4 @@ export default function ExtractStripePage() {
     </div>
   )
 }
+
