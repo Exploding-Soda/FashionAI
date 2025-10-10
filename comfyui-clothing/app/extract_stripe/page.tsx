@@ -117,12 +117,6 @@ const applyHueShift = (color: { r: number; g: number; b: number }, shift: number
   return hslToRgb(h + shift, s, l)
 }
 
-const adjustLightness = (color: { r: number; g: number; b: number }, delta: number) => {
-  const { h, s, l } = rgbToHsl(color.r, color.g, color.b)
-  const newL = Math.min(1, Math.max(0, l + delta))
-  return hslToRgb(h, s, newL)
-}
-
 const seededRandom = (seed: number) => {
   const x = Math.sin(seed) * 10000
   return x - Math.floor(x)
@@ -418,10 +412,8 @@ export default function ExtractStripePage() {
                       width = Math.min(width, remaining)
                     }
                     const hueShiftTotal = globalHueShift + variant.shift
-                    const baseColor = applyHueShift(unit.color, hueShiftTotal)
-                    const lightnessDelta = (seededRandom(seed + repeat * 11.5 + stripeIndex * 7.3) - 0.5) * 0.2
-                    const adjustedColor = adjustLightness(baseColor, lightnessDelta)
-                    ctx.fillStyle = `rgb(${adjustedColor.r}, ${adjustedColor.g}, ${adjustedColor.b})`
+                    const shiftedColor = applyHueShift(unit.color, hueShiftTotal)
+                    ctx.fillStyle = `rgb(${shiftedColor.r}, ${shiftedColor.g}, ${shiftedColor.b})`
                     ctx.fillRect(currentX, 0, width, tileHeight)
                     currentX += width
                   }
