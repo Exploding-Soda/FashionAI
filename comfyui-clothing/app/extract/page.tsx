@@ -567,28 +567,9 @@ export default function ExtractPage() {
       />
 
       <div className="container mx-auto px-6 py-8">
-        <div className="grid lg:grid-cols-3 gap-8">
-          {isProcessing && (
-            <div className="lg:col-span-1 space-y-6">
-              <Card className="border-primary/50 bg-primary/5">
-                <CardContent className="pt-6">
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <div className="size-2 rounded-full bg-primary animate-pulse" />
-                      <span className="text-sm font-medium">{processingStep}</span>
-                    </div>
-                    <Progress value={progress} className="w-full" />
-                    <p className="text-xs text-muted-foreground">
-                      Processing time: ~{Math.ceil(((100 - progress) / 25) * 1.5)}s remaining
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
+        <div className="grid gap-8">
           {/* Right Panel - Preview */}
-          <div className={isProcessing ? "lg:col-span-2" : "lg:col-span-3"}>
+          <div className="lg:col-span-3">
             <Card className="border-border/50 h-full">
               <CardHeader>
                 <div className="flex items-center justify-between">
