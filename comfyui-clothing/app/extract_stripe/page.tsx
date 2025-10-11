@@ -158,14 +158,12 @@ export default function ExtractStripePage() {
   const [patternVariants, setPatternVariants] = useState<PatternVariant[]>([])
   const [isRendering, setIsRendering] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [globalHueShift, setGlobalHueShift] = useState(0)
   const [activeStripeId, setActiveStripeId] = useState<string | null>(null)
   const [draggingStripeId, setDraggingStripeId] = useState<string | null>(null)
   const dragOverIdRef = useRef<string | null>(null)
   const [basePatternPreviewUrl, setBasePatternPreviewUrl] = useState<string | null>(null)
   const [previewLightbox, setPreviewLightbox] = useState<{ src: string; title: string } | null>(null)
   const [aiVariations, setAiVariations] = useState<StripeLLMVariation[]>([])
-  const [aiGuidance, setAiGuidance] = useState<string | null>(null)
   const [aiError, setAiError] = useState<string | null>(null)
   const [isLoadingAiVariations, setIsLoadingAiVariations] = useState(false)
   const aiRequestSignatureRef = useRef<string>("")
@@ -386,15 +384,9 @@ export default function ExtractStripePage() {
             .filter((variation): variation is StripeLLMVariation => variation !== null)
         : []
       setAiVariations(cleanedVariations.slice(0, 6))
-      setAiGuidance(
-        typeof response?.guidance === "string" && response.guidance.trim().length > 0
-          ? response.guidance.trim()
-          : null,
-      )
     } catch (error) {
       console.error("Stripe AI variation request failed:", error)
       setAiVariations([])
-      setAiGuidance(null)
       setAiError(error instanceof Error ? error.message : "无法获取AI衍生方案，请稍后再试。")
     } finally {
       setIsLoadingAiVariations(false)
@@ -572,7 +564,7 @@ export default function ExtractStripePage() {
                     } else {
                       width = Math.min(width, remaining)
                     }
-                    const hueShiftTotal = globalHueShift + variant.shift
+                    const hueShiftTotal = variant.shift
                     const shiftedColor = applyHueShift(unit.color, hueShiftTotal)
                     ctx.fillStyle = `rgb(${shiftedColor.r}, ${shiftedColor.g}, ${shiftedColor.b})`
                     ctx.fillRect(currentX, 0, width, tileHeight)
@@ -581,7 +573,7 @@ export default function ExtractStripePage() {
                 }
                 if (currentX < tileWidth) {
                   const fallback = stripeUnits[stripeUnits.length - 1]
-                  const hueShiftTotal = globalHueShift + variant.shift
+                  const hueShiftTotal = variant.shift
                   const baseColor = applyHueShift(fallback.color, hueShiftTotal)
                   ctx.fillStyle = `rgb(${baseColor.r}, ${baseColor.g}, ${baseColor.b})`
                   ctx.fillRect(currentX, 0, tileWidth - currentX, tileHeight)
@@ -614,7 +606,7 @@ export default function ExtractStripePage() {
       cancelled = true
       cancelledPreview = true
     }
-  }, [stripeUnits, totalUnitWidth, globalHueShift])
+  }, [stripeUnits, totalUnitWidth])
 
   const handleBackToExtract = useCallback(() => {
     router.push("/extract")
@@ -660,40 +652,10 @@ export default function ExtractStripePage() {
                     <PaintBucket className="size-5 text-primary" />
                     Stripe Unit Palette
                   </CardTitle>
-                  <p className="text-sm text-muted-foreground">Tweak stripe colors and widths, then apply a Hue Shift.</p>
+                  <p className="text-sm text-muted-foreground">Tweak stripe colors and widths to craft your base pattern.</p>
                 </div>
-                <Badge variant="secondary" className="uppercase tracking-wide">
-                  {stripeUnits.length} stripes
-                </Badge>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="rounded-md border border-border/30 bg-muted/5 p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <Label htmlFor="global-hue-slider" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Hue Shift
-                      </Label>
-                      <p className="text-sm text-muted-foreground">
-                        
-                      </p>
-                    </div>
-                    <div className="flex flex-1 items-center gap-3 sm:max-w-md">
-                      <Slider
-                        id="global-hue-slider"
-                        min={-180}
-                        max={180}
-                        step={1}
-                        value={[globalHueShift]}
-                        onValueChange={(value) => setGlobalHueShift(Math.round(value[0] ?? 0))}
-                      />
-                      <span className="w-14 text-right text-xs font-medium text-muted-foreground">
-                        {globalHueShift >= 0 ? "+" : ""}
-                        {globalHueShift}°
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
@@ -798,6 +760,91 @@ export default function ExtractStripePage() {
                     </div>
                   )}
                 </div>
+                <Separator />
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="size-5 text-primary" />
+                        <h3 className="text-base font-semibold">AI Stripe Inspirations</h3>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        基于提取的RGB条纹信息，生成可拓展的艺术化配色方案。
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={handleRegenerateAiVariations}
+                      disabled={isLoadingAiVariations || normalizedUnitsForAi.length === 0}
+                    >
+                      {isLoadingAiVariations ? (
+                        <RefreshCw className="size-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="size-4" />
+                      )}
+                      重新生成
+                    </Button>
+                  </div>
+                  {aiError && (
+                    <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+                      {aiError}
+                    </div>
+                  )}
+                  {!aiError && isLoadingAiVariations && (
+                    <div className="rounded-lg border border-border/40 bg-muted/10 p-4 text-center text-sm text-muted-foreground">
+                      <Sparkles className="mx-auto mb-2 size-7 animate-spin text-primary/80" />
+                      正在为你生成条纹灵感…
+                    </div>
+                  )}
+                  {!aiError && !isLoadingAiVariations && aiVariations.length === 0 && (
+                    <div className="rounded-lg border border-border/40 bg-muted/10 p-4 text-center text-sm text-muted-foreground">
+                      暂无AI衍生方案，可尝试调整条纹或点击“重新生成”获取灵感。
+                    </div>
+                  )}
+                  {!aiError && aiVariations.length > 0 && (
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                      {aiVariations.map((variation, idx) => (
+                        <button
+                          key={`${variation.title}-${idx}`}
+                          type="button"
+                          onClick={() => applyAiVariation(variation)}
+                          className="flex flex-col gap-3 rounded-lg border border-border/40 bg-background/60 p-3 text-left transition hover:border-primary/60 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+                          aria-label={`应用AI色组 ${variation.title}`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="space-y-1">
+                              <h4 className="text-sm font-semibold text-foreground">{variation.title}</h4>
+                              {variation.styleNote && (
+                                <p className="text-xs text-muted-foreground">{variation.styleNote}</p>
+                              )}
+                            </div>
+                            <Badge variant="outline" className="px-2 py-0 text-[10px] uppercase tracking-wide">
+                              点击应用
+                            </Badge>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {variation.stripeUnits.map((stripe, stripeIdx) => (
+                              <div
+                                key={`${variation.title}-swatch-${stripeIdx}`}
+                                className="flex flex-col items-center gap-1"
+                              >
+                                <span
+                                  className="h-8 w-8 rounded-full border border-border/50 shadow-sm"
+                                  style={{ backgroundColor: `rgb(${stripe.color.r}, ${stripe.color.g}, ${stripe.color.b})` }}
+                                />
+                                <span className="text-[10px] font-medium text-muted-foreground">
+                                  {Math.round(Math.max(0, stripe.relativeWidth) * 100)}%
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </motion.div>
@@ -858,105 +905,6 @@ export default function ExtractStripePage() {
                 ))}
               </div>
           </CardContent>
-          </Card>
-
-          <Card className="border-border/50">
-            <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="size-5 text-primary" />
-                  AI Stripe Inspirations
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  基于提取的RGB条纹信息，生成可拓展的艺术化配色方案。
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                onClick={handleRegenerateAiVariations}
-                disabled={isLoadingAiVariations || normalizedUnitsForAi.length === 0}
-              >
-                {isLoadingAiVariations ? (
-                  <RefreshCw className="size-4 animate-spin" />
-                ) : (
-                  <Sparkles className="size-4" />
-                )}
-                重新生成
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {aiError && (
-                <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-                  {aiError}
-                </div>
-              )}
-              {!aiError && isLoadingAiVariations && (
-                <div className="rounded-lg border border-border/40 bg-muted/10 p-6 text-center text-sm text-muted-foreground">
-                  <Sparkles className="mx-auto mb-3 size-8 animate-spin text-primary/80" />
-                  正在为你生成条纹灵感…
-                </div>
-              )}
-              {!aiError && !isLoadingAiVariations && aiVariations.length === 0 && (
-                <div className="rounded-lg border border-border/40 bg-muted/10 p-6 text-center text-sm text-muted-foreground">
-                  暂无AI衍生方案，可尝试调整条纹或点击“重新生成”获取灵感。
-                </div>
-              )}
-              {!aiError && aiVariations.length > 0 && (
-                <div className="space-y-5">
-                  {aiVariations.map((variation, idx) => (
-                    <button
-                      key={`${variation.title}-${idx}`}
-                      type="button"
-                      onClick={() => applyAiVariation(variation)}
-                      className="w-full space-y-3 rounded-lg border border-border/40 bg-background/60 p-4 text-left transition hover:border-primary/60 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
-                      aria-label={`应用AI色组 ${variation.title}`}
-                    >
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="space-y-1">
-                          <h3 className="text-base font-semibold text-foreground">{variation.title}</h3>
-                          {variation.styleNote && (
-                            <p className="text-sm text-muted-foreground">{variation.styleNote}</p>
-                          )}
-                        </div>
-                        <Badge variant="outline" className="w-fit text-xs uppercase tracking-wide">
-                          点击应用
-                        </Badge>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-3">
-                        {variation.stripeUnits.map((stripe, stripeIdx) => (
-                          <div key={`${variation.title}-swatch-${stripeIdx}`} className="flex flex-col items-center gap-1">
-                            <span
-                              className="h-10 w-10 rounded-full border border-border/50 shadow-sm"
-                              style={{ backgroundColor: `rgb(${stripe.color.r}, ${stripe.color.g}, ${stripe.color.b})` }}
-                            />
-                            <span className="text-[11px] font-medium text-muted-foreground">
-                              {Math.round(Math.max(0, stripe.relativeWidth) * 100)}%
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                        {variation.stripeUnits.map((stripe, stripeIdx) => (
-                          <span
-                            key={`${variation.title}-chip-${stripeIdx}`}
-                            className="rounded-full border border-border/50 bg-background/80 px-2 py-0.5"
-                          >
-                            #{stripeIdx + 1} · {rgbToHex(stripe.color.r, stripe.color.g, stripe.color.b)}
-                          </span>
-                        ))}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {aiGuidance && (
-                <div className="rounded-lg border border-border/40 bg-muted/10 p-4 text-sm text-muted-foreground">
-                  {aiGuidance}
-                </div>
-              )}
-            </CardContent>
           </Card>
         </>
       )}
