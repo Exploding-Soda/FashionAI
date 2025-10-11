@@ -166,8 +166,62 @@ export default function ExtractStripePage() {
   const [aiVariations, setAiVariations] = useState<StripeLLMVariation[]>([])
   const [aiError, setAiError] = useState<string | null>(null)
   const [isLoadingAiVariations, setIsLoadingAiVariations] = useState(false)
+  const [rotationAngle, setRotationAngle] = useState(0)
   const aiRequestSignatureRef = useRef<string>("")
   const skipNextAiAutoFetchRef = useRef(false)
+
+  const drawStripesWithRotation = useCallback(
+    (
+      ctx: CanvasRenderingContext2D,
+      {
+        tileWidth,
+        tileHeight,
+        stripeCount,
+        resolveSegment,
+      }: {
+        tileWidth: number
+        tileHeight: number
+        stripeCount: number
+        resolveSegment: (stripeIndex: number, repeatIndex: number) => { width: number; fillStyle: string } | null
+      },
+    ) => {
+      if (stripeCount <= 0) return
+      const diagonal = Math.hypot(tileWidth, tileHeight)
+      const coveragePadding = diagonal
+      const coverageStart = -coveragePadding
+      const coverageEnd = tileWidth + coveragePadding
+      const angleRad = (rotationAngle * Math.PI) / 180
+      ctx.save()
+      ctx.translate(tileWidth / 2, tileHeight / 2)
+      ctx.rotate(angleRad)
+      ctx.translate(-tileWidth / 2, -diagonal / 2)
+      let currentX = coverageStart
+      let repeatIndex = 0
+      let safety = 0
+      const safetyLimit = stripeCount * 1000
+      while (currentX < coverageEnd && safety < safetyLimit) {
+        for (let stripeIndex = 0; stripeIndex < stripeCount; stripeIndex += 1) {
+          const segment = resolveSegment(stripeIndex, repeatIndex)
+          if (!segment) {
+            safety += 1
+            continue
+          }
+          const width = Math.max(1, Math.round(segment.width))
+          const remaining = coverageEnd - currentX
+          if (remaining <= 0) break
+          const drawWidth = Math.min(width, remaining + 1)
+          ctx.fillStyle = segment.fillStyle
+          ctx.fillRect(currentX, 0, drawWidth, diagonal)
+          currentX += width
+          safety += 1
+          if (currentX >= coverageEnd || safety >= safetyLimit) break
+        }
+        repeatIndex += 1
+      }
+      ctx.restore()
+    },
+    [rotationAngle],
+  )
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -498,23 +552,20 @@ export default function ExtractStripePage() {
           ctx.fillStyle = "rgba(15, 23, 42, 0.04)"
           ctx.fillRect(0, 0, tileWidth, tileHeight)
 
-          let currentX = 0
-          for (let repeat = 0; repeat < repeatCount; repeat += 1) {
-            for (let stripeIndex = 0; stripeIndex < stripeUnits.length; stripeIndex += 1) {
-              if (currentX >= tileWidth) break
+          drawStripesWithRotation(ctx, {
+            tileWidth,
+            tileHeight,
+            stripeCount: stripeUnits.length,
+            resolveSegment: (stripeIndex) => {
               const unit = stripeUnits[stripeIndex]
-              const width = Math.min(baseWidths[stripeIndex], tileWidth - currentX)
-              ctx.fillStyle = `rgb(${clampChannel(unit.color.r)}, ${clampChannel(unit.color.g)}, ${clampChannel(unit.color.b)})`
-              ctx.fillRect(currentX, 0, width, tileHeight)
-              currentX += width
-            }
-          }
-
-          if (currentX < tileWidth && stripeUnits.length > 0) {
-            const last = stripeUnits[stripeUnits.length - 1]
-            ctx.fillStyle = `rgb(${clampChannel(last.color.r)}, ${clampChannel(last.color.g)}, ${clampChannel(last.color.b)})`
-            ctx.fillRect(currentX, 0, tileWidth - currentX, tileHeight)
-          }
+              const width = baseWidths[stripeIndex]
+              if (!unit || !Number.isFinite(width) || width <= 0) return null
+              return {
+                width,
+                fillStyle: `rgb(${clampChannel(unit.color.r)}, ${clampChannel(unit.color.g)}, ${clampChannel(unit.color.b)})`,
+              }
+            },
+          })
 
           const url = canvas.toDataURL("image/png")
           if (!cancelledPreview) {
@@ -542,8 +593,8 @@ export default function ExtractStripePage() {
           const stripeCount = stripeUnits.length
           const cycleWidth = Math.max(240, Math.round(totalUnitWidth) || stripeUnits.length * 80)
           const variantWidths = generateVariantWidths(stripeCount, seed, cycleWidth)
-          const repeatCount = Math.max(2, Math.ceil(640 / cycleWidth))
-          const tileWidth = cycleWidth * repeatCount
+          const repeatMultiplier = Math.max(2, Math.ceil(640 / cycleWidth))
+          const tileWidth = cycleWidth * repeatMultiplier
           const tileHeight = tileWidth
           const dataUrl = await new Promise<string>((resolve, reject) => {
             requestAnimationFrame(() => {
@@ -556,35 +607,28 @@ export default function ExtractStripePage() {
                 }
                 canvas.width = tileWidth
                 canvas.height = tileHeight
-                let currentX = 0
-                for (let repeat = 0; repeat < repeatCount; repeat += 1) {
-                  for (let stripeIndex = 0; stripeIndex < stripeCount; stripeIndex += 1) {
-                    if (currentX >= tileWidth) break
+                ctx.fillStyle = "rgba(15, 23, 42, 0.04)"
+                ctx.fillRect(0, 0, tileWidth, tileHeight)
+
+                drawStripesWithRotation(ctx, {
+                  tileWidth,
+                  tileHeight,
+                  stripeCount,
+                  resolveSegment: (stripeIndex, repeatIndex) => {
                     const unit = stripeUnits[stripeIndex]
                     const baseWidth = variantWidths[stripeIndex]
+                    if (!unit || !Number.isFinite(baseWidth) || baseWidth <= 0) return null
                     const jitter =
-                      0.85 + seededRandom(seed + repeat * 23.17 + stripeIndex * 31.73) * 0.3
-                    let width = Math.max(1, Math.round(baseWidth * jitter))
-                    const remaining = tileWidth - currentX
-                    if (stripeIndex === stripeCount - 1 && repeat === repeatCount - 1) {
-                      width = remaining
-                    } else {
-                      width = Math.min(width, remaining)
-                    }
+                      0.85 + seededRandom(seed + repeatIndex * 23.17 + stripeIndex * 31.73) * 0.3
+                    const width = Math.max(1, Math.round(baseWidth * jitter))
                     const hueShiftTotal = variant.shift
                     const shiftedColor = applyHueShift(unit.color, hueShiftTotal)
-                    ctx.fillStyle = `rgb(${shiftedColor.r}, ${shiftedColor.g}, ${shiftedColor.b})`
-                    ctx.fillRect(currentX, 0, width, tileHeight)
-                    currentX += width
-                  }
-                }
-                if (currentX < tileWidth) {
-                  const fallback = stripeUnits[stripeUnits.length - 1]
-                  const hueShiftTotal = variant.shift
-                  const baseColor = applyHueShift(fallback.color, hueShiftTotal)
-                  ctx.fillStyle = `rgb(${baseColor.r}, ${baseColor.g}, ${baseColor.b})`
-                  ctx.fillRect(currentX, 0, tileWidth - currentX, tileHeight)
-                }
+                    return {
+                      width,
+                      fillStyle: `rgb(${shiftedColor.r}, ${shiftedColor.g}, ${shiftedColor.b})`,
+                    }
+                  },
+                })
                 resolve(canvas.toDataURL("image/png"))
               } catch (error) {
                 reject(error)
@@ -613,7 +657,7 @@ export default function ExtractStripePage() {
       cancelled = true
       cancelledPreview = true
     }
-  }, [stripeUnits, totalUnitWidth])
+  }, [stripeUnits, totalUnitWidth, drawStripesWithRotation])
 
   const handleBackToExtract = useCallback(() => {
     router.push("/extract")
@@ -766,6 +810,41 @@ export default function ExtractStripePage() {
                       </button>
                     </div>
                   )}
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <Label
+                      htmlFor="rotation-angle-slider"
+                      className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
+                    >
+                      条纹旋转
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-foreground">{rotationAngle.toFixed(0)}°</span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => setRotationAngle(0)}
+                        disabled={rotationAngle === 0}
+                      >
+                        重置
+                      </Button>
+                    </div>
+                  </div>
+                  <Slider
+                    id="rotation-angle-slider"
+                    min={-180}
+                    max={180}
+                    step={1}
+                    value={[rotationAngle]}
+                    onValueChange={(value) => {
+                      const nextValue = Array.isArray(value) ? value[0] : value
+                      const clamped = Math.max(-180, Math.min(180, Math.round(nextValue ?? 0)))
+                      setRotationAngle(clamped)
+                    }}
+                  />
                 </div>
                 <Separator />
                 <div className="space-y-4">

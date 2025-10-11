@@ -73,5 +73,80 @@
       "output\\whiteiguana1008@gmail.com\\20251011_141715.png"
     ],
     "error_message": null
+  },
+  {
+    "id": 4,
+    "tenant_task_id": "tenant_69e4832f6d2446ec",
+    "user_id": "whiteiguana1008@gmail.com",
+    "runninghub_task_id": "1976897977161867265",
+    "task_type": "pattern_extract",
+    "status": "SUCCESS",
+    "created_at": "2025-10-11T06:29:42.426049",
+    "completed_at": "2025-10-11T06:30:30.260552",
+    "result_data": {
+      "taskId": "1976897977161867265",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_xytbc_1760164212.png",
+          "fileType": "png",
+          "taskCostTime": "39",
+          "nodeId": "225"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\whiteiguana1008@gmail.com\\20251011_143028.png"
+    ],
+    "error_message": null
+  },
+  {
+    "id": 5,
+    "tenant_task_id": "tenant_01eb87bf900644a0",
+    "user_id": "whiteiguana1008@gmail.com",
+    "runninghub_task_id": "1976899283960193026",
+    "task_type": "pattern_extract",
+    "status": "SUCCESS",
+    "created_at": "2025-10-11T06:34:53.976292",
+    "completed_at": "2025-10-11T06:35:41.521907",
+    "result_data": {
+      "taskId": "1976899283960193026",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_sdmpe_1760164530.png",
+          "fileType": "png",
+          "taskCostTime": "44",
+          "nodeId": "225"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\whiteiguana1008@gmail.com\\20251011_143540.png"
+    ],
+    "error_message": null
+  },
+  {
+    "id": 6,
+    "tenant_task_id": "tenant_8b925483ab454d5f",
+    "user_id": "whiteiguana1008@gmail.com",
+    "runninghub_task_id": "1976900460957392898",
+    "task_type": "pattern_extract",
+    "status": "SUCCESS",
+    "created_at": "2025-10-11T06:39:34.624043",
+    "completed_at": "2025-10-11T06:40:11.156899",
+    "result_data": {
+      "taskId": "1976900460957392898",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_exhze_1760164799.png",
+          "fileType": "png",
+          "taskCostTime": "32",
+          "nodeId": "225"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\whiteiguana1008@gmail.com\\20251011_144008.png"
+    ],
+    "error_message": null
   }
 ]
