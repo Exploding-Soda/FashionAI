@@ -167,6 +167,7 @@ export default function ExtractStripePage() {
   const [aiError, setAiError] = useState<string | null>(null)
   const [isLoadingAiVariations, setIsLoadingAiVariations] = useState(false)
   const aiRequestSignatureRef = useRef<string>("")
+  const skipNextAiAutoFetchRef = useRef(false)
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -396,6 +397,11 @@ export default function ExtractStripePage() {
   useEffect(() => {
     if (normalizedUnitsForAi.length === 0) return
     const signature = JSON.stringify(normalizedUnitsForAi)
+    if (skipNextAiAutoFetchRef.current) {
+      skipNextAiAutoFetchRef.current = false
+      aiRequestSignatureRef.current = signature
+      return
+    }
     if (aiRequestSignatureRef.current === signature) return
     void fetchAiVariations()
   }, [normalizedUnitsForAi, fetchAiVariations])
@@ -408,6 +414,7 @@ export default function ExtractStripePage() {
   const applyAiVariation = useCallback(
     (variation: StripeLLMVariation) => {
       if (!variation?.stripeUnits || variation.stripeUnits.length === 0) return
+      skipNextAiAutoFetchRef.current = true
       const baseWidth = Math.max(120, totalUnitWidth || 240)
       let accumulated = 0
       const nextUnits: EditableStripeUnit[] = variation.stripeUnits.map((stripe, index) => {
