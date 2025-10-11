@@ -21,6 +21,22 @@ export interface StripePatternUnit {
   widthPx: number;
 }
 
+export interface StripeLLMVariationUnit {
+  color: { r: number; g: number; b: number };
+  relativeWidth: number;
+}
+
+export interface StripeLLMVariation {
+  title: string;
+  styleNote?: string;
+  stripeUnits: StripeLLMVariationUnit[];
+}
+
+export interface StripeLLMResponse {
+  variations: StripeLLMVariation[];
+  guidance?: string;
+}
+
 export interface PaletteResponse {
   groups: PaletteGroup[];
   /**
@@ -101,6 +117,22 @@ export class ExtractApiClient {
     const res = await this.makeRequest(
       `${this.baseUrl}/proxy/complete_pattern_extract`,
       { method: "POST", headers: this.getFormHeaders(), body: form }
+    );
+    return res.json();
+  }
+
+  async requestStripeVariations(payload: {
+    stripeUnits: Array<{ color: { r: number; g: number; b: number }; widthPx: number }>;
+    paletteGroups?: PaletteGroup[];
+    targetCount?: number;
+  }): Promise<StripeLLMResponse> {
+    const res = await this.makeRequest(
+      `${this.baseUrl}/proxy/llm/stripe_variations`,
+      {
+        method: "POST",
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload),
+      }
     );
     return res.json();
   }

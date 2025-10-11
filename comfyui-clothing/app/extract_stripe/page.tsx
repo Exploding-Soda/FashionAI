@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { PaintBucket, ArrowLeft, Sparkles, AlertTriangle, SplitSquareVertical, Ruler, X, ZoomIn } from "lucide-react"
+import { PaintBucket, ArrowLeft, Sparkles, AlertTriangle, SplitSquareVertical, Ruler, X, ZoomIn, RefreshCw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,7 +12,7 @@ import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import type { PaletteGroup, StripePatternUnit } from "@/lib/extract-api-client"
+import { extractApiClient, type PaletteGroup, type StripePatternUnit, type StripeLLMVariation } from "@/lib/extract-api-client"
 
 const STRIPE_STORAGE_KEY = "extract_stripe_payload"
 
@@ -153,6 +153,7 @@ const generateVariantWidths = (count: number, baseSeed: number, targetCycleWidth
 export default function ExtractStripePage() {
   const router = useRouter()
   const [stripeUnits, setStripeUnits] = useState<EditableStripeUnit[]>([])
+  const [paletteGroups, setPaletteGroups] = useState<PaletteGroup[]>([])
   const [payloadMeta, setPayloadMeta] = useState<{ generatedAt?: number; sourceImage?: string | null }>({})
   const [patternVariants, setPatternVariants] = useState<PatternVariant[]>([])
   const [isRendering, setIsRendering] = useState(false)
@@ -163,6 +164,11 @@ export default function ExtractStripePage() {
   const dragOverIdRef = useRef<string | null>(null)
   const [basePatternPreviewUrl, setBasePatternPreviewUrl] = useState<string | null>(null)
   const [previewLightbox, setPreviewLightbox] = useState<{ src: string; title: string } | null>(null)
+  const [aiVariations, setAiVariations] = useState<StripeLLMVariation[]>([])
+  const [aiGuidance, setAiGuidance] = useState<string | null>(null)
+  const [aiError, setAiError] = useState<string | null>(null)
+  const [isLoadingAiVariations, setIsLoadingAiVariations] = useState(false)
+  const aiRequestSignatureRef = useRef<string>("")
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -187,6 +193,7 @@ export default function ExtractStripePage() {
         widthPx: Math.max(1, Math.round(unit?.widthPx ?? 10)),
       }))
       setStripeUnits(enriched)
+      setPaletteGroups(Array.isArray(parsed.paletteGroups) ? parsed.paletteGroups : [])
       setPayloadMeta({ generatedAt: parsed.generatedAt, sourceImage: parsed.sourceImage })
     } catch (error) {
       console.error("Failed to parse stripe payload:", error)
@@ -286,6 +293,160 @@ export default function ExtractStripePage() {
   const totalUnitWidth = useMemo(
     () => stripeUnits.reduce((acc, unit) => acc + Math.max(1, unit.widthPx), 0),
     [stripeUnits],
+  )
+
+  const normalizedUnitsForAi = useMemo(
+    () =>
+      stripeUnits.map((unit) => ({
+        color: {
+          r: clampChannel(unit.color.r),
+          g: clampChannel(unit.color.g),
+          b: clampChannel(unit.color.b),
+        },
+        widthPx: Math.max(1, Math.round(unit.widthPx)),
+      })),
+    [stripeUnits],
+  )
+
+  const fetchAiVariations = useCallback(async () => {
+    if (normalizedUnitsForAi.length === 0) return
+    const signature = JSON.stringify(normalizedUnitsForAi)
+    aiRequestSignatureRef.current = signature
+    setIsLoadingAiVariations(true)
+    setAiError(null)
+    try {
+      const response = await extractApiClient.requestStripeVariations({
+        stripeUnits: normalizedUnitsForAi,
+        paletteGroups,
+      })
+      const cleanedVariations: StripeLLMVariation[] = Array.isArray(response?.variations)
+        ? response.variations
+            .map((variation) => {
+              if (!variation || typeof variation !== "object") return null
+              const title =
+                typeof variation.title === "string" && variation.title.trim()
+                  ? variation.title.trim()
+                  : typeof (variation as any).name === "string" && (variation as any).name.trim()
+                    ? (variation as any).name.trim()
+                    : "AI Variation"
+              const styleNoteRaw =
+                typeof variation.styleNote === "string"
+                  ? variation.styleNote
+                  : typeof (variation as any).style_note === "string"
+                    ? (variation as any).style_note
+                    : typeof (variation as any).description === "string"
+                      ? (variation as any).description
+                      : undefined
+              const rawUnits =
+                Array.isArray(variation.stripeUnits) && variation.stripeUnits.length > 0
+                  ? variation.stripeUnits
+                  : Array.isArray((variation as any).stripes)
+                    ? (variation as any).stripes
+                    : []
+              const sanitizedUnits = rawUnits
+                .map((unit: any) => {
+                  if (!unit || typeof unit !== "object") return null
+                  const rawColor = unit.color || unit.colour || unit.rgb || {}
+                  const relativeCandidate =
+                    typeof unit.relativeWidth === "number"
+                      ? unit.relativeWidth
+                      : typeof unit.relativeWidth === "string"
+                        ? Number.parseFloat(unit.relativeWidth)
+                        : typeof unit.widthRatio === "number"
+                          ? unit.widthRatio
+                          : typeof unit.widthPx === "number"
+                            ? unit.widthPx
+                            : null
+                  const relativeWidth = Number.isFinite(relativeCandidate) ? Math.abs(Number(relativeCandidate)) : 0
+                  const color = {
+                    r: clampChannel(Number(rawColor?.r ?? rawColor?.R ?? 0)),
+                    g: clampChannel(Number(rawColor?.g ?? rawColor?.G ?? 0)),
+                    b: clampChannel(Number(rawColor?.b ?? rawColor?.B ?? 0)),
+                  }
+                  if (relativeWidth <= 0) return null
+                  return {
+                    color,
+                    relativeWidth,
+                  }
+                })
+                .filter((unit): unit is { color: { r: number; g: number; b: number }; relativeWidth: number } => Boolean(unit))
+              if (sanitizedUnits.length === 0) return null
+              const total = sanitizedUnits.reduce((acc, unit) => acc + unit.relativeWidth, 0)
+              if (total <= 0) return null
+              const normalized = sanitizedUnits.map((unit) => ({
+                color: unit.color,
+                relativeWidth: Number((unit.relativeWidth / total).toFixed(4)),
+              }))
+              return {
+                title,
+                styleNote: styleNoteRaw?.trim() || undefined,
+                stripeUnits: normalized,
+              }
+            })
+            .filter((variation): variation is StripeLLMVariation => variation !== null)
+        : []
+      setAiVariations(cleanedVariations.slice(0, 6))
+      setAiGuidance(
+        typeof response?.guidance === "string" && response.guidance.trim().length > 0
+          ? response.guidance.trim()
+          : null,
+      )
+    } catch (error) {
+      console.error("Stripe AI variation request failed:", error)
+      setAiVariations([])
+      setAiGuidance(null)
+      setAiError(error instanceof Error ? error.message : "无法获取AI衍生方案，请稍后再试。")
+    } finally {
+      setIsLoadingAiVariations(false)
+    }
+  }, [normalizedUnitsForAi, paletteGroups])
+
+  useEffect(() => {
+    if (normalizedUnitsForAi.length === 0) return
+    const signature = JSON.stringify(normalizedUnitsForAi)
+    if (aiRequestSignatureRef.current === signature) return
+    void fetchAiVariations()
+  }, [normalizedUnitsForAi, fetchAiVariations])
+
+  const handleRegenerateAiVariations = useCallback(() => {
+    aiRequestSignatureRef.current = ""
+    void fetchAiVariations()
+  }, [fetchAiVariations])
+
+  const applyAiVariation = useCallback(
+    (variation: StripeLLMVariation) => {
+      if (!variation?.stripeUnits || variation.stripeUnits.length === 0) return
+      const baseWidth = Math.max(120, totalUnitWidth || 240)
+      let accumulated = 0
+      const nextUnits: EditableStripeUnit[] = variation.stripeUnits.map((stripe, index) => {
+        const rawWidth = stripe?.relativeWidth ?? 0
+        let widthPx = Math.max(1, Math.round(rawWidth * baseWidth))
+        if (index === variation.stripeUnits.length - 1) {
+          widthPx = Math.max(1, baseWidth - accumulated)
+        }
+        accumulated += widthPx
+        return {
+          id: `${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`,
+          color: {
+            r: clampChannel(stripe.color.r),
+            g: clampChannel(stripe.color.g),
+            b: clampChannel(stripe.color.b),
+          },
+          widthPx,
+        }
+      })
+      const sum = nextUnits.reduce((acc, unit) => acc + unit.widthPx, 0)
+      if (sum !== baseWidth && nextUnits.length > 0) {
+        const delta = baseWidth - sum
+        nextUnits[nextUnits.length - 1] = {
+          ...nextUnits[nextUnits.length - 1],
+          widthPx: Math.max(1, nextUnits[nextUnits.length - 1].widthPx + delta),
+        }
+      }
+      setStripeUnits(nextUnits)
+      setActiveStripeId(null)
+    },
+    [setStripeUnits, totalUnitWidth],
   )
 
   useEffect(() => {
@@ -696,6 +857,105 @@ export default function ExtractStripePage() {
                   </div>
                 ))}
               </div>
+          </CardContent>
+          </Card>
+
+          <Card className="border-border/50">
+            <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="size-5 text-primary" />
+                  AI Stripe Inspirations
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  基于提取的RGB条纹信息，生成可拓展的艺术化配色方案。
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={handleRegenerateAiVariations}
+                disabled={isLoadingAiVariations || normalizedUnitsForAi.length === 0}
+              >
+                {isLoadingAiVariations ? (
+                  <RefreshCw className="size-4 animate-spin" />
+                ) : (
+                  <Sparkles className="size-4" />
+                )}
+                重新生成
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {aiError && (
+                <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+                  {aiError}
+                </div>
+              )}
+              {!aiError && isLoadingAiVariations && (
+                <div className="rounded-lg border border-border/40 bg-muted/10 p-6 text-center text-sm text-muted-foreground">
+                  <Sparkles className="mx-auto mb-3 size-8 animate-spin text-primary/80" />
+                  正在为你生成条纹灵感…
+                </div>
+              )}
+              {!aiError && !isLoadingAiVariations && aiVariations.length === 0 && (
+                <div className="rounded-lg border border-border/40 bg-muted/10 p-6 text-center text-sm text-muted-foreground">
+                  暂无AI衍生方案，可尝试调整条纹或点击“重新生成”获取灵感。
+                </div>
+              )}
+              {!aiError && aiVariations.length > 0 && (
+                <div className="space-y-5">
+                  {aiVariations.map((variation, idx) => (
+                    <button
+                      key={`${variation.title}-${idx}`}
+                      type="button"
+                      onClick={() => applyAiVariation(variation)}
+                      className="w-full space-y-3 rounded-lg border border-border/40 bg-background/60 p-4 text-left transition hover:border-primary/60 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+                      aria-label={`应用AI色组 ${variation.title}`}
+                    >
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="space-y-1">
+                          <h3 className="text-base font-semibold text-foreground">{variation.title}</h3>
+                          {variation.styleNote && (
+                            <p className="text-sm text-muted-foreground">{variation.styleNote}</p>
+                          )}
+                        </div>
+                        <Badge variant="outline" className="w-fit text-xs uppercase tracking-wide">
+                          点击应用
+                        </Badge>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3">
+                        {variation.stripeUnits.map((stripe, stripeIdx) => (
+                          <div key={`${variation.title}-swatch-${stripeIdx}`} className="flex flex-col items-center gap-1">
+                            <span
+                              className="h-10 w-10 rounded-full border border-border/50 shadow-sm"
+                              style={{ backgroundColor: `rgb(${stripe.color.r}, ${stripe.color.g}, ${stripe.color.b})` }}
+                            />
+                            <span className="text-[11px] font-medium text-muted-foreground">
+                              {Math.round(Math.max(0, stripe.relativeWidth) * 100)}%
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                        {variation.stripeUnits.map((stripe, stripeIdx) => (
+                          <span
+                            key={`${variation.title}-chip-${stripeIdx}`}
+                            className="rounded-full border border-border/50 bg-background/80 px-2 py-0.5"
+                          >
+                            #{stripeIdx + 1} · {rgbToHex(stripe.color.r, stripe.color.g, stripe.color.b)}
+                          </span>
+                        ))}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {aiGuidance && (
+                <div className="rounded-lg border border-border/40 bg-muted/10 p-4 text-sm text-muted-foreground">
+                  {aiGuidance}
+                </div>
+              )}
             </CardContent>
           </Card>
         </>

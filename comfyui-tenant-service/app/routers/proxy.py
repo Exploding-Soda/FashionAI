@@ -484,6 +484,191 @@ async def palette_from_image(request: Request, current_user = Depends(get_curren
     return JSONResponse(content=data, status_code=response.status_code)
 
 
+@router.post("/llm/stripe_variations")
+async def stripe_variations(request: Request, current_user = Depends(get_current_user), db: Session = Depends(get_db)):
+    """
+    根据前端传来的条纹RGB与宽度信息，向租户配置的LLM请求风格衍生方案。
+    预期返回：{ "variations": [ { "title": "", "styleNote": "", "stripeUnits": [ { "color": {...}, "relativeWidth": 0.0 } ] }, ... ], "guidance": "" }
+    """
+    logger = get_proxy_logger()
+
+    if settings.is_database_storage():
+        username = current_user.username
+        tenant_id = current_user.tenant_id
+    else:
+        username = current_user["username"]
+        tenant_id = current_user["tenant_id"]
+
+    logger.info(f"LLM条纹衍生请求, 用户: {username}")
+
+    if settings.is_json_storage():
+        tenant = db.get_tenant_by_id(tenant_id)
+    else:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    raw_settings = getattr(tenant, "settings", None) if settings.is_database_storage() else tenant.get("settings")
+    tenant_settings = {}
+    if raw_settings:
+        if isinstance(raw_settings, dict):
+            tenant_settings = raw_settings
+        elif isinstance(raw_settings, str):
+            try:
+                tenant_settings = json.loads(raw_settings)
+            except json.JSONDecodeError:
+                tenant_settings = {}
+
+    llm_nested = tenant_settings.get("llm") if isinstance(tenant_settings.get("llm"), dict) else {}
+    llm_service_url = (
+        llm_nested.get("service_url")
+        or llm_nested.get("endpoint")
+        or tenant_settings.get("llm_service_url")
+        or tenant_settings.get("llm_endpoint")
+        or settings.llm_service_url
+    )
+    llm_api_key = (
+        llm_nested.get("api_key")
+        or tenant_settings.get("llm_api_key")
+        or settings.llm_api_key
+    )
+    llm_default_model = (
+        llm_nested.get("default_model")
+        or llm_nested.get("model")
+        or tenant_settings.get("llm_default_model")
+        or settings.llm_default_model
+        or "gpt-4.1"
+    )
+
+    if not llm_service_url or not llm_api_key:
+        raise HTTPException(status_code=500, detail="LLM service is not configured")
+
+    try:
+        body = await request.json()
+    except Exception as exc:
+        logger.error(f"解析条纹衍生请求JSON失败: {exc}")
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    stripe_units = body.get("stripeUnits") or []
+    palette_groups = body.get("paletteGroups") or []
+    target_count = body.get("targetCount") or 4
+
+    if not isinstance(stripe_units, list) or len(stripe_units) == 0:
+        raise HTTPException(status_code=400, detail="stripeUnits are required")
+
+    def safe_round_width(value: float) -> float:
+        try:
+            return round(float(value), 2)
+        except Exception:
+            return 0.0
+
+    normalized_units = []
+    for unit in stripe_units:
+        if not isinstance(unit, dict):
+            continue
+        color = unit.get("color") or {}
+        width_px = unit.get("widthPx", 0)
+        try:
+            r = int(color.get("r", 0))
+            g = int(color.get("g", 0))
+            b = int(color.get("b", 0))
+        except Exception:
+            r = g = b = 0
+        try:
+            width_px = max(1, float(width_px))
+        except Exception:
+            width_px = 1.0
+        normalized_units.append({
+            "color": {"r": max(0, min(255, r)), "g": max(0, min(255, g)), "b": max(0, min(255, b))},
+            "widthPx": safe_round_width(width_px),
+        })
+
+    if not normalized_units:
+        raise HTTPException(status_code=400, detail="No valid stripe units provided")
+
+    units_json = json.dumps(normalized_units, ensure_ascii=False)
+    palette_json = json.dumps(palette_groups, ensure_ascii=False) if palette_groups else "[]"
+
+    prompt = (
+        "我们已经提取了一组条纹印花的最小循环单元，包含RGB颜色与相对宽度数据。"
+        "请作为资深纺织图案设计师，基于这些信息构思新的艺术化条纹方案。你可以增减色带数量、调整颜色或宽度，"
+        "但需要保持色彩协调、适合服装印花的风格，并确保每个方案的相对宽度可归一化。"
+        "\n\n原始条纹单元（widthPx 为相对像素宽度）：\n"
+        f"{units_json}\n"
+        "\n如果有帮助，可参考这些协调配色组（可选）：\n"
+        f"{palette_json}\n"
+        "\n请输出一个JSON对象，格式如下：\n"
+        '{ "variations": [ { "title": "方案名称", "styleNote": "风格说明", "stripeUnits": [ { "color": {"r":0-255,"g":0-255,"b":0-255}, "relativeWidth": 0.00 }, ... ] }, ... ], "guidance": "整体建议" }\n'
+        "要求：\n"
+        f"1. 给出 {target_count} 个左右的方案（如果灵感有限可少于此数，但至少2个）。\n"
+        "2. 每个方案的 stripeUnits 至少包含 3 条色带，relativeWidth 为 0-1 的小数，并保证总和≈1（允许两位小数误差）。\n"
+        "3. 可以引入新的颜色或调换顺序，但要与原始风格有联系。\n"
+        "4. 仅返回JSON，不要加入额外解释或Markdown。\n"
+    )
+
+    payload = {
+        "model": llm_default_model,
+        "messages": [
+            {"role": "system", "content": "你是资深纺织与印花设计师，只能输出JSON对象，不得添加多余文字。"},
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.8,
+        "response_format": {"type": "json_object"},
+        "stream": False,
+    }
+
+    target_url = f"{llm_service_url.rstrip('/')}/chat/completions"
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(
+                target_url,
+                headers={
+                    "Authorization": f"Bearer {llm_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+    except httpx.TimeoutException as exc:
+        logger.error(f"LLM条纹衍生请求超时: {exc}")
+        raise HTTPException(status_code=504, detail="LLM service timeout")
+    except httpx.HTTPError as exc:
+        logger.error(f"LLM条纹衍生请求失败: {exc}")
+        raise HTTPException(status_code=502, detail="LLM service request failed")
+
+    text = resp.text
+    data = None
+    try:
+        data = resp.json()
+    except Exception:
+        data = None
+
+    if resp.status_code >= 400:
+        logger.error(f"LLM条纹衍生服务错误: {text}")
+        if isinstance(data, dict):
+            raise HTTPException(status_code=resp.status_code, detail=data)
+        raise HTTPException(status_code=resp.status_code, detail=text or "LLM service error")
+
+    if isinstance(data, dict):
+        content = None
+        try:
+            content = data.get("choices", [{}])[0].get("message", {}).get("content")
+        except Exception:
+            content = None
+        if isinstance(content, str):
+            try:
+                return JSONResponse(content=json.loads(content))
+            except Exception as parse_err:
+                logger.warning(f"解析LLM条纹内容失败，返回原始 choices: {parse_err}")
+                return JSONResponse(content={"variations": []})
+
+    try:
+        parsed = json.loads(text)
+        return JSONResponse(content=parsed)
+    except Exception:
+        logger.warning("LLM条纹衍生响应非JSON，返回空结果")
+        return JSONResponse(content={"variations": []})
+
 @router.post("/upload")
 async def upload_file(request: Request, current_user = Depends(get_current_user), db: Session = Depends(get_db)):
     return await proxy_to_runninghub(request, "upload", current_user, db)
