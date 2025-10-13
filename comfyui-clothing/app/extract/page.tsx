@@ -922,21 +922,21 @@ export default function ExtractPage() {
                           </div>
                         </div>
                       ) : extractedImages.length > 0 ? (
-                        <div className="flex h-64 w-full max-w-xl items-center justify-center rounded-lg border-2 border-dashed border-border">
-                          <div className="space-y-2 text-center">
-                            <Layers className="size-8 text-muted-foreground mx-auto" />
+                        <div className="flex h-96 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-border text-center space-y-4">
+                          <Layers className="mx-auto size-12 text-muted-foreground" />
+                          <div>
+                            <p className="text-lg font-medium">Generate a variant preview</p>
                             <p className="text-sm text-muted-foreground">
-                              Generate a variant preview to see the extracted image merged with the active color group.
+                              Combine the extracted image with the active color group to view results.
                             </p>
                           </div>
                         </div>
                       ) : (
-                        <div className="flex h-64 w-full max-w-xl items-center justify-center rounded-lg border-2 border-dashed border-border">
-                          <div className="space-y-2 text-center">
-                            <AlertCircle className="size-8 text-muted-foreground mx-auto" />
-                            <p className="text-sm text-muted-foreground">
-                              Upload an image and run extraction before generating variants.
-                            </p>
+                        <div className="flex h-96 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-border text-center space-y-4">
+                          <AlertCircle className="mx-auto size-12 text-muted-foreground" />
+                          <div>
+                            <p className="text-lg font-medium">Upload an image and run extraction</p>
+                            <p className="text-sm text-muted-foreground">Generate extracted patterns before creating variants.</p>
                           </div>
                         </div>
                       )}
