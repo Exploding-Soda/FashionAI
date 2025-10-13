@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { motion } from "framer-motion"
+import { AnimatePresence, motion } from "framer-motion"
 import { PaintBucket, ArrowLeft, Sparkles, AlertTriangle, SplitSquareVertical, Ruler, X, ZoomIn, RefreshCw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -26,6 +26,8 @@ interface StripePayload {
 interface EditableStripeUnit extends StripePatternUnit {
   id: string
 }
+
+type StripeUnitSnapshot = Omit<EditableStripeUnit, "id">
 
 interface PatternVariant {
   hueShift: number
@@ -150,6 +152,13 @@ const generateVariantWidths = (count: number, baseSeed: number, targetCycleWidth
   return rounded
 }
 
+const createStripeId = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID()
+  }
+  return `stripe-${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
 export default function ExtractStripePage() {
   const router = useRouter()
   const [stripeUnits, setStripeUnits] = useState<EditableStripeUnit[]>([])
@@ -158,7 +167,8 @@ export default function ExtractStripePage() {
   const [patternVariants, setPatternVariants] = useState<PatternVariant[]>([])
   const [isRendering, setIsRendering] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [activeStripeId, setActiveStripeId] = useState<string | null>(null)
+  const [selectedStripeId, setSelectedStripeId] = useState<string | null>(null)
+  const [editingStripeId, setEditingStripeId] = useState<string | null>(null)
   const [draggingStripeId, setDraggingStripeId] = useState<string | null>(null)
   const dragOverIdRef = useRef<string | null>(null)
   const [basePatternPreviewUrl, setBasePatternPreviewUrl] = useState<string | null>(null)
@@ -167,6 +177,7 @@ export default function ExtractStripePage() {
   const [aiError, setAiError] = useState<string | null>(null)
   const [isLoadingAiVariations, setIsLoadingAiVariations] = useState(false)
   const [rotationAngle, setRotationAngle] = useState(0)
+  const [copiedStripe, setCopiedStripe] = useState<StripeUnitSnapshot | null>(null)
   const aiRequestSignatureRef = useRef<string>("")
   const skipNextAiAutoFetchRef = useRef(false)
 
@@ -279,26 +290,84 @@ export default function ExtractStripePage() {
     })
   }, [])
 
-  const selectedStripe = useMemo(
-    () => (activeStripeId ? stripeUnits.find((unit) => unit.id === activeStripeId) ?? null : null),
-    [activeStripeId, stripeUnits],
+  const editingStripe = useMemo(
+    () => (editingStripeId ? stripeUnits.find((unit) => unit.id === editingStripeId) ?? null : null),
+    [editingStripeId, stripeUnits],
   )
 
-  const selectedStripeIndex = useMemo(
-    () => (activeStripeId ? stripeUnits.findIndex((unit) => unit.id === activeStripeId) : -1),
-    [activeStripeId, stripeUnits],
+  const editingStripeIndex = useMemo(
+    () => (editingStripeId ? stripeUnits.findIndex((unit) => unit.id === editingStripeId) : -1),
+    [editingStripeId, stripeUnits],
   )
 
   useEffect(() => {
-    if (activeStripeId && !stripeUnits.some((unit) => unit.id === activeStripeId)) {
-      setActiveStripeId(null)
+    if (selectedStripeId && !stripeUnits.some((unit) => unit.id === selectedStripeId)) {
+      setSelectedStripeId(null)
     }
-  }, [activeStripeId, stripeUnits])
+    if (editingStripeId && !stripeUnits.some((unit) => unit.id === editingStripeId)) {
+      setEditingStripeId(null)
+    }
+  }, [editingStripeId, selectedStripeId, stripeUnits])
 
-  const handleStripeClick = useCallback(
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      if (target) {
+        const tagName = target.tagName
+        if (target.isContentEditable || tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT") {
+          return
+        }
+      }
+      if (!(event.ctrlKey || event.metaKey)) return
+      if (event.key.toLowerCase() === "c") {
+        if (!selectedStripeId) return
+        const source = stripeUnits.find((unit) => unit.id === selectedStripeId)
+        if (!source) return
+        event.preventDefault()
+        setCopiedStripe({
+          color: { ...source.color },
+          widthPx: source.widthPx,
+        })
+        return
+      }
+      if (event.key.toLowerCase() === "v") {
+        if (!selectedStripeId || !copiedStripe) return
+        const insertIndex = stripeUnits.findIndex((unit) => unit.id === selectedStripeId)
+        if (insertIndex === -1) return
+        event.preventDefault()
+        const cloned: EditableStripeUnit = {
+          id: createStripeId(),
+          color: { ...copiedStripe.color },
+          widthPx: Math.max(1, Math.round(copiedStripe.widthPx)),
+        }
+        setStripeUnits((prev) => {
+          const targetIndex = prev.findIndex((unit) => unit.id === selectedStripeId)
+          if (targetIndex === -1) return prev
+          const next = [...prev]
+          next.splice(targetIndex + 1, 0, cloned)
+          return next
+        })
+        setSelectedStripeId(cloned.id)
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [copiedStripe, selectedStripeId, stripeUnits])
+
+  const handleStripeSelect = useCallback(
     (id: string) => {
       if (draggingStripeId) return
-      setActiveStripeId(id)
+      setSelectedStripeId(id)
+    },
+    [draggingStripeId],
+  )
+
+  const handleStripeEdit = useCallback(
+    (id: string) => {
+      if (draggingStripeId) return
+      setSelectedStripeId(id)
+      setEditingStripeId(id)
     },
     [draggingStripeId],
   )
@@ -306,11 +375,10 @@ export default function ExtractStripePage() {
   const handleRemoveStripe = useCallback(
     (id: string) => {
       setStripeUnits((prev) => prev.filter((unit) => unit.id !== id))
-      if (activeStripeId === id) {
-        setActiveStripeId(null)
-      }
+      setSelectedStripeId((prev) => (prev === id ? null : prev))
+      setEditingStripeId((prev) => (prev === id ? null : prev))
     },
-    [activeStripeId],
+    [],
   )
 
   const handleStripeDragStart = useCallback((event: React.DragEvent<HTMLButtonElement>, id: string) => {
@@ -497,7 +565,8 @@ export default function ExtractStripePage() {
         }
       }
       setStripeUnits(nextUnits)
-      setActiveStripeId(null)
+      setSelectedStripeId(null)
+      setEditingStripeId(null)
     },
     [setStripeUnits, totalUnitWidth],
   )
@@ -713,7 +782,7 @@ export default function ExtractStripePage() {
                       <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         基础条纹构成
                       </Label>
-                      <p className="text-sm text-muted-foreground">点击任意色块，打开对话框微调颜色与宽度。</p>
+                      <p className="text-sm text-muted-foreground">左键选中色块后，可从悬浮操作打开对话框微调颜色与宽度。</p>
                     </div>
                     <Badge variant="outline" className="gap-1 text-xs">
                       <Ruler className="size-3.5" />
@@ -723,56 +792,105 @@ export default function ExtractStripePage() {
                   <div className="rounded-lg border border-border/30 bg-background/60 p-4">
                     {stripeUnits.length > 0 ? (
                       <div className="flex h-24 w-full overflow-hidden rounded-md border border-border/40 shadow-inner">
-                        {stripeUnits.map((unit, index) => (
-                          <button
-                            key={unit.id}
-                            type="button"
-                            draggable
-                            onClick={() => handleStripeClick(unit.id)}
-                            onDragStart={(event) => handleStripeDragStart(event, unit.id)}
-                            onDragOver={(event) => handleStripeDragOver(event, unit.id)}
-                            onDragEnd={handleStripeDragEnd}
-                            onDrop={(event) => event.preventDefault()}
-                            className={`group relative flex h-full min-w-[32px] flex-1 cursor-pointer items-end justify-center border-r border-white/20 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 hover:brightness-110 ${
-                              draggingStripeId === unit.id ? "z-10 scale-[1.02] ring-2 ring-primary/70" : ""
-                            }`}
-                            style={{
-                              flexGrow: Math.max(1, unit.widthPx),
-                              flexBasis: 0,
-                              backgroundColor: `rgb(${unit.color.r}, ${unit.color.g}, ${unit.color.b})`,
-                            }}
-                            aria-label={`调整条纹 ${index + 1}`}
-                          >
-                            <span
-                              role="button"
-                              tabIndex={0}
-                              onClick={(event) => {
-                                event.preventDefault()
-                                event.stopPropagation()
-                                handleRemoveStripe(unit.id)
-                              }}
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter" || event.key === " ") {
-                                  event.preventDefault()
-                                  event.stopPropagation()
-                                  handleRemoveStripe(unit.id)
-                                }
-                              }}
-                              onMouseDown={(event) => event.stopPropagation()}
-                              onDragStart={(event) => event.stopPropagation()}
-                              className="group/close absolute right-1 top-1 hidden cursor-pointer rounded-full bg-black/60 p-0.5 text-white transition hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 group-hover:flex"
-                              aria-label={`移除条纹 ${index + 1}`}
+                        {stripeUnits.map((unit, index) => {
+                          const isSelected = selectedStripeId === unit.id
+                          const isDragging = draggingStripeId === unit.id
+                          const flexSizing = {
+                            flexGrow: Math.max(1, unit.widthPx),
+                            flexBasis: 0,
+                          } as const
+                          return (
+                            <div
+                              key={unit.id}
+                              className="relative flex h-full min-w-[32px] flex-1 rounded-lg"
+                              style={flexSizing}
                             >
-                              <X className="size-3.5" />
-                            </span>
-                            <span className="pointer-events-none absolute top-1 left-1 rounded-md bg-black/40 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-white/90">
-                              #{index + 1}
-                            </span>
-                            <span className="pointer-events-none mb-2 rounded-md bg-black/35 px-2 py-0.5 text-[11px] font-medium text-white/90">
-                              {Math.round(unit.widthPx)}px
-                            </span>
-                          </button>
-                        ))}
+                              <AnimatePresence>
+                                {isSelected ? (
+                                  <motion.button
+                                    key="edit"
+                                    type="button"
+                                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                                    transition={{ duration: 0.18, ease: "easeOut" }}
+                                    onClick={(event) => {
+                                      event.preventDefault()
+                                      event.stopPropagation()
+                                      handleStripeEdit(unit.id)
+                                    }}
+                                    className="absolute top-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border border-white/70 bg-black/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white shadow-lg hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+                                  >
+                                    调整
+                                  </motion.button>
+                                ) : null}
+                              </AnimatePresence>
+                              {isSelected && (
+                                <span
+                                  aria-hidden
+                                  className="pointer-events-none absolute inset-[-4px] rounded-[inherit] bg-[conic-gradient(at_50%_50%,#22d3ee_0deg,#6366f1_120deg,#ec4899_240deg,#f97316_360deg)] opacity-90"
+                                />
+                              )}
+                              <button
+                                type="button"
+                                draggable
+                                onClick={() => handleStripeSelect(unit.id)}
+                                onDragStart={(event) => handleStripeDragStart(event, unit.id)}
+                                onDragOver={(event) => handleStripeDragOver(event, unit.id)}
+                                onDragEnd={handleStripeDragEnd}
+                                onDrop={(event) => event.preventDefault()}
+                                className={`group relative z-[1] flex h-full w-full cursor-pointer items-end justify-center rounded-lg border-r border-white/20 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 hover:brightness-110 ${
+                                  isDragging
+                                    ? "z-10 scale-[1.02] ring-2 ring-primary/70"
+                                    : isSelected
+                                      ? "scale-[1.01] shadow-lg shadow-primary/30 outline outline-2 outline-white/70"
+                                      : ""
+                                }`}
+                                style={{
+                                  backgroundColor: `rgb(${unit.color.r}, ${unit.color.g}, ${unit.color.b})`,
+                                }}
+                                data-selected={isSelected ? "true" : undefined}
+                                aria-pressed={isSelected}
+                                aria-label={`调整条纹 ${index + 1}`}
+                              >
+                                {isSelected && (
+                                  <span
+                                    aria-hidden
+                                    className="pointer-events-none absolute inset-0 rounded-lg border-2 border-white/70 mix-blend-screen"
+                                  />
+                                )}
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={(event) => {
+                                    event.preventDefault()
+                                    event.stopPropagation()
+                                    handleRemoveStripe(unit.id)
+                                  }}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter" || event.key === " ") {
+                                      event.preventDefault()
+                                      event.stopPropagation()
+                                      handleRemoveStripe(unit.id)
+                                    }
+                                  }}
+                                  onMouseDown={(event) => event.stopPropagation()}
+                                  onDragStart={(event) => event.stopPropagation()}
+                                  className="group/close absolute right-1 top-1 hidden cursor-pointer rounded-full bg-black/60 p-0.5 text-white transition hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 group-hover:flex"
+                                  aria-label={`移除条纹 ${index + 1}`}
+                                >
+                                  <X className="size-3.5" />
+                                </span>
+                                <span className="pointer-events-none absolute top-1 left-1 rounded-md bg-black/40 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-white/90">
+                                  #{index + 1}
+                                </span>
+                                <span className="pointer-events-none mb-2 rounded-md bg-black/35 px-2 py-0.5 text-[11px] font-medium text-white/90">
+                                  {Math.round(unit.widthPx)}px
+                                </span>
+                              </button>
+                            </div>
+                          )
+                        })}
                       </div>
                     ) : (
                       <div className="flex h-24 w-full items-center justify-center rounded-md border border-dashed border-border/40 text-xs text-muted-foreground">
@@ -994,13 +1112,13 @@ export default function ExtractStripePage() {
           </Card>
         </>
       )}
-      <Dialog open={Boolean(selectedStripe)} onOpenChange={(open) => { if (!open) setActiveStripeId(null) }}>
+      <Dialog open={Boolean(editingStripe)} onOpenChange={(open) => { if (!open) setEditingStripeId(null) }}>
         <DialogContent className="max-w-md">
-          {selectedStripe && (
+          {editingStripe && (
             <>
               <DialogHeader>
                 <DialogTitle className="text-lg font-semibold">
-                  调整条纹 #{stripeUnits.indexOf(selectedStripe) + 1}
+                  调整条纹 #{stripeUnits.indexOf(editingStripe) + 1}
                 </DialogTitle>
                 <DialogDescription>
                   微调颜色与宽度会立即反映到基础条纹与所有预览中。
@@ -1009,74 +1127,74 @@ export default function ExtractStripePage() {
               <div className="space-y-4">
                 <div
                   className="h-20 w-full rounded-md border border-border/40 shadow-inner"
-                  style={{ backgroundColor: `rgb(${selectedStripe.color.r}, ${selectedStripe.color.g}, ${selectedStripe.color.b})` }}
+                  style={{ backgroundColor: `rgb(${editingStripe.color.r}, ${editingStripe.color.g}, ${editingStripe.color.b})` }}
                 />
                 <div className="space-y-2">
-                  <Label htmlFor={`dialog-color-${selectedStripe.id}`} className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  <Label htmlFor={`dialog-color-${editingStripe.id}`} className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     颜色
                   </Label>
                   <div className="flex items-center gap-3">
                     <input
-                      id={`dialog-color-${selectedStripe.id}`}
+                      id={`dialog-color-${editingStripe.id}`}
                       type="color"
-                      value={rgbToHex(selectedStripe.color.r, selectedStripe.color.g, selectedStripe.color.b)}
-                      onChange={(event) => handleColorChange(selectedStripe.id, event.target.value)}
+                      value={rgbToHex(editingStripe.color.r, editingStripe.color.g, editingStripe.color.b)}
+                      onChange={(event) => handleColorChange(editingStripe.id, event.target.value)}
                       className="h-10 w-12 cursor-pointer appearance-none rounded border border-border/40 bg-transparent p-0.5"
                     />
                     <span className="text-sm text-muted-foreground">
-                      RGB {selectedStripe.color.r}, {selectedStripe.color.g}, {selectedStripe.color.b}
+                      RGB {editingStripe.color.r}, {editingStripe.color.g}, {editingStripe.color.b}
                     </span>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <Label
-                      htmlFor={`dialog-width-${selectedStripe.id}`}
+                      htmlFor={`dialog-width-${editingStripe.id}`}
                       className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
                     >
                       宽度
                     </Label>
-                    <span className="font-medium text-foreground">{Math.round(selectedStripe.widthPx)} px</span>
+                    <span className="font-medium text-foreground">{Math.round(editingStripe.widthPx)} px</span>
                   </div>
                   <Slider
-                    id={`dialog-width-${selectedStripe.id}`}
+                    id={`dialog-width-${editingStripe.id}`}
                     min={4}
                     max={240}
                     step={1}
-                    value={[Math.round(selectedStripe.widthPx)]}
-                    onValueChange={(value) => handleWidthChange(selectedStripe.id, value)}
+                    value={[Math.round(editingStripe.widthPx)]}
+                    onValueChange={(value) => handleWidthChange(editingStripe.id, value)}
                   />
                 </div>
-                {selectedStripeIndex >= 0 && (
+                {editingStripeIndex >= 0 && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <Label
-                        htmlFor={`dialog-order-${selectedStripe.id}`}
+                        htmlFor={`dialog-order-${editingStripe.id}`}
                         className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
                       >
                         顺序
                       </Label>
                       <span className="font-medium text-foreground">
-                        第 {selectedStripeIndex + 1} 位 / {stripeUnits.length}
+                        第 {editingStripeIndex + 1} 位 / {stripeUnits.length}
                       </span>
                     </div>
                     <Slider
-                      id={`dialog-order-${selectedStripe.id}`}
+                      id={`dialog-order-${editingStripe.id}`}
                       min={1}
                       max={Math.max(1, stripeUnits.length)}
                       step={1}
-                      value={[selectedStripeIndex + 1]}
+                      value={[editingStripeIndex + 1]}
                       onValueChange={(value) => {
                         const raw = Array.isArray(value) ? value[0] : value
-                        const nextPosition = Math.max(1, Math.min(stripeUnits.length, Math.round(raw ?? selectedStripeIndex + 1)))
-                        handleReorderStripe(selectedStripe.id, nextPosition - 1)
+                        const nextPosition = Math.max(1, Math.min(stripeUnits.length, Math.round(raw ?? editingStripeIndex + 1)))
+                        handleReorderStripe(editingStripe.id, nextPosition - 1)
                       }}
                     />
                   </div>
                 )}
               </div>
               <DialogFooter className="mt-6">
-                <Button variant="outline" onClick={() => setActiveStripeId(null)}>
+                <Button variant="outline" onClick={() => setEditingStripeId(null)}>
                   完成
                 </Button>
               </DialogFooter>
