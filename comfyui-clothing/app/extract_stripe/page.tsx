@@ -832,7 +832,14 @@ export default function ExtractStripePage() {
                               {isSelected && (
                                 <span
                                   aria-hidden
-                                  className="pointer-events-none absolute inset-[-4px] rounded-[inherit] bg-[conic-gradient(at_50%_50%,#22d3ee_0deg,#6366f1_120deg,#ec4899_240deg,#f97316_360deg)] opacity-90"
+                                  className="pointer-events-none absolute inset-0 box-border rounded-[inherit] bg-[conic-gradient(at_50%_50%,#22d3ee_0deg,#6366f1_120deg,#ec4899_240deg,#f97316_360deg)]"
+                                  style={{
+                                    padding: "1.5px",
+                                    WebkitMask:
+                                      "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+                                    WebkitMaskComposite: "xor",
+                                    maskComposite: "exclude",
+                                  }}
                                 />
                               )}
                               <button
@@ -847,7 +854,7 @@ export default function ExtractStripePage() {
                                   isDragging
                                     ? "z-10 scale-[1.02] ring-2 ring-primary/70"
                                     : isSelected
-                                      ? "scale-[1.01] shadow-lg shadow-primary/30 outline outline-2 outline-white/70"
+                                      ? "scale-[1.01] shadow-lg shadow-primary/30 outline outline-[1.5px] outline-white/60"
                                       : ""
                                 }`}
                                 style={{
