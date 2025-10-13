@@ -36,6 +36,7 @@ import type { PaletteGroup, StripePatternUnit, TaskHistoryItem } from "@/lib/ext
 import { useAuth } from "@/contexts/auth-context"
 
 const STRIPE_STORAGE_KEY = "extract_stripe_payload"
+const MAX_SESSION_PAYLOAD_BYTES = 2 * 1024 * 1024
 
 export default function ExtractPage() {
   const router = useRouter()
@@ -80,12 +81,11 @@ export default function ExtractPage() {
   const currentStripePayload = useMemo(() => {
     if (!isStripePattern || !stripePatternUnit || stripePatternUnit.length === 0) return null
     return {
-      stripePatternUnit,
-      paletteGroups,
-      sourceImage: extractedImages[0] ?? null,
+      stripePatternUnit: stripePatternUnit.map((unit) => ({ ...unit })),
+      paletteGroups: clonePaletteGroups(paletteGroups),
       generatedAt: Date.now(),
     }
-  }, [isStripePattern, stripePatternUnit, paletteGroups, extractedImages])
+  }, [isStripePattern, stripePatternUnit, paletteGroups, clonePaletteGroups])
   const normalizeStatus = useCallback(
     (status?: string | null): "PENDING" | "SUCCESS" | "FAILED" => {
       const upper = (status ?? "").trim().toUpperCase()
@@ -309,7 +309,20 @@ export default function ExtractPage() {
     if (currentStripePayload) {
       try {
         if (typeof window !== "undefined") {
-          window.sessionStorage.setItem(STRIPE_STORAGE_KEY, JSON.stringify(currentStripePayload))
+          const payloadForStorage = {
+            stripePatternUnit: currentStripePayload.stripePatternUnit,
+            paletteGroups: currentStripePayload.paletteGroups,
+            generatedAt: currentStripePayload.generatedAt,
+          }
+          const serialized = JSON.stringify(payloadForStorage)
+          const byteLength =
+            typeof TextEncoder !== "undefined" ? new TextEncoder().encode(serialized).length : serialized.length * 2
+          if (byteLength > MAX_SESSION_PAYLOAD_BYTES) {
+            console.warn(`Stripe payload too large for sessionStorage (${byteLength} bytes); skipping persistence.`)
+            window.sessionStorage.removeItem(STRIPE_STORAGE_KEY)
+          } else {
+            window.sessionStorage.setItem(STRIPE_STORAGE_KEY, serialized)
+          }
         }
         router.push("/extract_stripe")
       } catch (error) {

@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AnimatePresence, motion } from "framer-motion"
-import { PaintBucket, ArrowLeft, Sparkles, AlertTriangle, SplitSquareVertical, Ruler, X, ZoomIn, RefreshCw } from "lucide-react"
+import { PaintBucket, ArrowLeft, Sparkles, AlertTriangle, Ruler, X, ZoomIn, RefreshCw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -28,19 +28,6 @@ interface EditableStripeUnit extends StripePatternUnit {
 }
 
 type StripeUnitSnapshot = Omit<EditableStripeUnit, "id">
-
-interface PatternVariant {
-  hueShift: number
-  label: string
-  previews: string[]
-}
-
-const HUE_VARIANTS = [
-  { shift: 0, label: "Base Hue" },
-  { shift: 60, label: "+60° Warm" },
-  { shift: 150, label: "+150° Vivid" },
-  { shift: 240, label: "+240° Cool" },
-]
 
 const clampChannel = (value: number) => Math.max(0, Math.min(255, Math.round(value)))
 
@@ -124,34 +111,6 @@ const seededRandom = (seed: number) => {
   return x - Math.floor(x)
 }
 
-const generateVariantWidths = (count: number, baseSeed: number, targetCycleWidth: number) => {
-  if (count <= 0) return []
-  const raw = Array.from({ length: count }, (_, idx) => {
-    const randomness = seededRandom(baseSeed + idx * 13.37)
-    // Produce values in roughly [0.4, 2.0] range to create noticeable variation.
-    return 0.4 + randomness * 1.6
-  })
-  const sum = raw.reduce((acc, value) => acc + value, 0) || 1
-  const rounded: number[] = []
-  let accumulated = 0
-  for (let i = 0; i < count; i += 1) {
-    if (i === count - 1) {
-      rounded.push(Math.max(1, targetCycleWidth - accumulated))
-    } else {
-      const proportional = (raw[i] / sum) * targetCycleWidth
-      const width = Math.max(1, Math.round(proportional))
-      rounded.push(width)
-      accumulated += width
-    }
-  }
-  if (rounded.length > 0) {
-    const totalRounded = rounded.reduce((acc, value) => acc + value, 0)
-    const delta = targetCycleWidth - totalRounded
-    rounded[rounded.length - 1] = Math.max(1, rounded[rounded.length - 1] + delta)
-  }
-  return rounded
-}
-
 const createStripeId = () => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID()
@@ -164,8 +123,6 @@ export default function ExtractStripePage() {
   const [stripeUnits, setStripeUnits] = useState<EditableStripeUnit[]>([])
   const [paletteGroups, setPaletteGroups] = useState<PaletteGroup[]>([])
   const [payloadMeta, setPayloadMeta] = useState<{ generatedAt?: number; sourceImage?: string | null }>({})
-  const [patternVariants, setPatternVariants] = useState<PatternVariant[]>([])
-  const [isRendering, setIsRendering] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [selectedStripeId, setSelectedStripeId] = useState<string | null>(null)
   const [editingStripeId, setEditingStripeId] = useState<string | null>(null)
@@ -573,12 +530,13 @@ export default function ExtractStripePage() {
 
   useEffect(() => {
     if (stripeUnits.length === 0) {
-      setPatternVariants([])
       setBasePatternPreviewUrl(null)
       return
     }
-    let cancelledPreview = false
-    const baseCycle = () => {
+
+    let cancelled = false
+
+    const generatePreview = () => {
       const cycleSourceWidth = Math.max(
         1,
         totalUnitWidth || stripeUnits.reduce((acc, unit) => acc + Math.max(1, unit.widthPx), 0),
@@ -586,6 +544,7 @@ export default function ExtractStripePage() {
       const cycleWidth = Math.max(240, Math.round(cycleSourceWidth)) || stripeUnits.length * 80
       const baseWidths: number[] = []
       let accumulated = 0
+
       for (let i = 0; i < stripeUnits.length; i += 1) {
         let width = Math.max(
           1,
@@ -599,11 +558,13 @@ export default function ExtractStripePage() {
         baseWidths.push(width)
         accumulated += width
       }
+
       if (baseWidths.length > 0) {
         const roundedTotal = baseWidths.reduce((acc, value) => acc + value, 0)
         const delta = cycleWidth - roundedTotal
         baseWidths[baseWidths.length - 1] = Math.max(1, baseWidths[baseWidths.length - 1] + delta)
       }
+
       window.requestAnimationFrame(() => {
         try {
           const repeatCount = 4
@@ -612,7 +573,7 @@ export default function ExtractStripePage() {
           const canvas = document.createElement("canvas")
           const ctx = canvas.getContext("2d")
           if (!ctx) {
-            setBasePatternPreviewUrl(null)
+            if (!cancelled) setBasePatternPreviewUrl(null)
             return
           }
 
@@ -637,94 +598,22 @@ export default function ExtractStripePage() {
           })
 
           const url = canvas.toDataURL("image/png")
-          if (!cancelledPreview) {
+          if (!cancelled) {
             setBasePatternPreviewUrl(url)
           }
         } catch (error) {
           console.error("Failed to render base stripe preview:", error)
-          if (!cancelledPreview) {
+          if (!cancelled) {
             setBasePatternPreviewUrl(null)
           }
         }
       })
     }
-    baseCycle()
 
-    let cancelled = false
-    setIsRendering(true)
-
-    const render = async () => {
-      const variants: PatternVariant[] = []
-      for (const variant of HUE_VARIANTS) {
-        const previews: string[] = []
-        for (let i = 0; i < 4; i += 1) {
-          const seed = variant.shift * 17.11 + i * 19.87
-          const stripeCount = stripeUnits.length
-          const cycleWidth = Math.max(240, Math.round(totalUnitWidth) || stripeUnits.length * 80)
-          const variantWidths = generateVariantWidths(stripeCount, seed, cycleWidth)
-          const repeatMultiplier = Math.max(2, Math.ceil(640 / cycleWidth))
-          const tileWidth = cycleWidth * repeatMultiplier
-          const tileHeight = tileWidth
-          const dataUrl = await new Promise<string>((resolve, reject) => {
-            requestAnimationFrame(() => {
-              try {
-                const canvas = document.createElement("canvas")
-                const ctx = canvas.getContext("2d")
-                if (!ctx) {
-                  reject(new Error("Canvas unsupported"))
-                  return
-                }
-                canvas.width = tileWidth
-                canvas.height = tileHeight
-                ctx.fillStyle = "rgba(15, 23, 42, 0.04)"
-                ctx.fillRect(0, 0, tileWidth, tileHeight)
-
-                drawStripesWithRotation(ctx, {
-                  tileWidth,
-                  tileHeight,
-                  stripeCount,
-                  resolveSegment: (stripeIndex, repeatIndex) => {
-                    const unit = stripeUnits[stripeIndex]
-                    const baseWidth = variantWidths[stripeIndex]
-                    if (!unit || !Number.isFinite(baseWidth) || baseWidth <= 0) return null
-                    const jitter =
-                      0.85 + seededRandom(seed + repeatIndex * 23.17 + stripeIndex * 31.73) * 0.3
-                    const width = Math.max(1, Math.round(baseWidth * jitter))
-                    const hueShiftTotal = variant.shift
-                    const shiftedColor = applyHueShift(unit.color, hueShiftTotal)
-                    return {
-                      width,
-                      fillStyle: `rgb(${shiftedColor.r}, ${shiftedColor.g}, ${shiftedColor.b})`,
-                    }
-                  },
-                })
-                resolve(canvas.toDataURL("image/png"))
-              } catch (error) {
-                reject(error)
-              }
-            })
-          })
-          previews.push(dataUrl)
-        }
-        variants.push({ hueShift: variant.shift, label: variant.label, previews })
-      }
-      if (!cancelled) {
-        setPatternVariants(variants)
-        setIsRendering(false)
-      }
-    }
-
-    render().catch((error) => {
-      console.error("Failed to render stripe previews:", error)
-      if (!cancelled) {
-        setPatternVariants([])
-        setIsRendering(false)
-      }
-    })
+    generatePreview()
 
     return () => {
       cancelled = true
-      cancelledPreview = true
     }
   }, [stripeUnits, totalUnitWidth, drawStripesWithRotation])
 
@@ -1064,63 +953,6 @@ export default function ExtractStripePage() {
             </Card>
           </motion.div>
 
-          <Card className="border-border/50">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <SplitSquareVertical className="size-5 text-primary" />
-                  Stripe Variations Preview
-                </CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <Separator />
-              <div className="space-y-6">
-                {isRendering && (
-                  <div className="rounded-lg border border-border/40 bg-muted/10 p-6 text-center text-sm text-muted-foreground">
-                    <Sparkles className="mx-auto mb-4 size-10 animate-spin text-muted-foreground/70" />
-                    Generating preview variations…
-                  </div>
-                )}
-                {!isRendering && patternVariants.length === 0 && (
-                  <div className="rounded-lg border border-border/40 bg-muted/10 p-6 text-center text-sm text-muted-foreground">
-                    Adjust the stripes above to see live pattern previews in multiple hue families.
-                  </div>
-                )}
-              {!isRendering &&
-                patternVariants.map((variant) => (
-                  <div key={variant.hueShift} className="rounded-lg border border-border/40 bg-muted/5 p-4">
-                    <div className="grid gap-4 md:grid-cols-4 sm:grid-cols-2">
-                      {variant.previews.map((preview, idx) => (
-                        <button
-                          key={`${variant.hueShift}-${idx}`}
-                          type="button"
-                          onClick={() =>
-                            setPreviewLightbox({
-                              src: preview,
-                              title: variant.label,
-                            })
-                          }
-                          className="group space-y-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
-                        >
-                          <div className="relative aspect-square overflow-hidden rounded-md border border-border/40 bg-background shadow-sm">
-                            <img
-                              src={preview}
-                              alt={`${variant.label} stripe preview`}
-                              className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                            />
-                            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/25">
-                              <ZoomIn className="size-6 text-white opacity-0 transition group-hover:opacity-100" />
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-          </CardContent>
-          </Card>
         </>
       )}
       <Dialog open={Boolean(editingStripe)} onOpenChange={(open) => { if (!open) setEditingStripeId(null) }}>

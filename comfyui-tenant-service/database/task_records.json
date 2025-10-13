@@ -499,5 +499,68 @@
       "output\\whiteiguana1008@gmail.com\\20251013_114742.png"
     ],
     "error_message": null
+  },
+  {
+    "id": 22,
+    "tenant_task_id": "tenant_8250996a89914617",
+    "user_id": "eason",
+    "runninghub_task_id": "1977619646448918530",
+    "task_type": "pattern_extract",
+    "status": "PENDING",
+    "created_at": "2025-10-13T06:17:21.243649",
+    "completed_at": null,
+    "result_data": null,
+    "storage_paths": null,
+    "error_message": null
+  },
+  {
+    "id": 23,
+    "tenant_task_id": "tenant_086e97f5311e4059",
+    "user_id": "eason",
+    "runninghub_task_id": "1977619735212871682",
+    "task_type": "pattern_extract",
+    "status": "SUCCESS",
+    "created_at": "2025-10-13T06:17:42.414487",
+    "completed_at": "2025-10-13T06:18:39.625076",
+    "result_data": {
+      "taskId": "1977619735212871682",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_rnspd_1760336302.png",
+          "fileType": "png",
+          "taskCostTime": "50",
+          "nodeId": "225"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\eason\\20251013_141836.png"
+    ],
+    "error_message": null
+  },
+  {
+    "id": 24,
+    "tenant_task_id": "tenant_4a75a0acc6e54a2d",
+    "user_id": "eason",
+    "runninghub_task_id": "1977620938382630913",
+    "task_type": "pattern_extract",
+    "status": "SUCCESS",
+    "created_at": "2025-10-13T06:22:29.267578",
+    "completed_at": "2025-10-13T06:23:05.207101",
+    "result_data": {
+      "taskId": "1977620938382630913",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_rajbs_1760336574.png",
+          "fileType": "png",
+          "taskCostTime": "33",
+          "nodeId": "225"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\eason\\20251013_142303.png"
+    ],
+    "error_message": null
   }
 ]
