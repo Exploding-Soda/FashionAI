@@ -649,12 +649,6 @@ export default function ExtractPage() {
                       </DialogContent>
                     </Dialog>
 
-                    <div className="mx-auto mb-4 flex w-full max-w-3xl justify-end">
-                      <Button variant="outline" size="sm" onClick={() => extractedFileInputRef.current?.click()}>
-                        Upload image
-                      </Button>
-                    </div>
-
                     <div className="flex flex-col items-center space-y-6">
                       {extractedImages.length > 0 ? (
                         <div className="grid w-full max-w-3xl grid-cols-2 gap-4 justify-items-center md:grid-cols-3">
@@ -677,13 +671,13 @@ export default function ExtractPage() {
                         <button
                           type="button"
                           onClick={() => extractedFileInputRef.current?.click()}
-                          className="flex h-64 w-full max-w-xl flex-col items-center justify-center rounded-lg border-2 border-dashed border-border text-center space-y-2 transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                          className="flex h-96 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-border text-center space-y-4 transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                           aria-label="Upload extracted image"
                         >
-                          <ImageIcon className="size-10 text-muted-foreground mx-auto" />
+                          <ImageIcon className="mx-auto size-12 text-muted-foreground" />
                           <div>
-                            <p className="text-sm font-medium">Upload an extracted image</p>
-                            <p className="text-xs text-muted-foreground">Analyze color groups without rerunning extraction</p>
+                            <p className="text-lg font-medium">Upload an extracted image</p>
+                            <p className="text-sm text-muted-foreground">Analyze color groups without rerunning extraction</p>
                           </div>
                         </button>
                       )}
@@ -950,7 +944,7 @@ export default function ExtractPage() {
                   </TabsContent>
                 </Tabs>
 
-                <div className="mt-6 w-full max-w-sm mx-auto">
+                <div className="mt-6 w-full max-w-3xl mx-auto">
                   {activeTab === "original" && (
                     <Button onClick={handleExtract} disabled={isProcessing} className="w-full gap-2">
                       {isProcessing ? (
