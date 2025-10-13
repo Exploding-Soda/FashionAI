@@ -807,22 +807,26 @@ export default function ExtractStripePage() {
                             >
                               <AnimatePresence>
                                 {isSelected ? (
-                                  <motion.button
+                                  <motion.div
                                     key="edit"
-                                    type="button"
-                                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                                    initial={{ opacity: 0, y: 6, scale: 0.95 }}
                                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                                    exit={{ opacity: 0, y: 6, scale: 0.95 }}
                                     transition={{ duration: 0.18, ease: "easeOut" }}
-                                    onClick={(event) => {
-                                      event.preventDefault()
-                                      event.stopPropagation()
-                                      handleStripeEdit(unit.id)
-                                    }}
-                                    className="absolute top-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border border-white/70 bg-black/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white shadow-lg hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+                                    className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center"
                                   >
-                                    调整
-                                  </motion.button>
+                                    <button
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.preventDefault()
+                                        event.stopPropagation()
+                                        handleStripeEdit(unit.id)
+                                      }}
+                                      className="pointer-events-auto flex items-center gap-1 rounded-full border border-white/70 bg-black/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white shadow-lg hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+                                    >
+                                      调整
+                                    </button>
+                                  </motion.div>
                                 ) : null}
                               </AnimatePresence>
                               {isSelected && (
