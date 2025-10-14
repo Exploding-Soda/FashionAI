@@ -562,5 +562,143 @@
       "output\\eason\\20251013_142303.png"
     ],
     "error_message": null
+  },
+  {
+    "id": 25,
+    "tenant_task_id": "tenant_334c179412124233",
+    "user_id": "whiteiguana1008@gmail.com",
+    "runninghub_task_id": "1977648236402040834",
+    "task_type": "pattern_extract",
+    "status": "SUCCESS",
+    "created_at": "2025-10-13T08:10:57.726141",
+    "completed_at": "2025-10-13T08:12:23.371524",
+    "result_data": {
+      "taskId": "1977648236402040834",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_sizpx_1760343121.png",
+          "fileType": "png",
+          "taskCostTime": "72",
+          "nodeId": "225"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\whiteiguana1008@gmail.com\\20251013_161220.png"
+    ],
+    "error_message": null
+  },
+  {
+    "id": 26,
+    "tenant_task_id": "tenant_caa9c9fbf4864617",
+    "user_id": "whiteiguana1008@gmail.com",
+    "runninghub_task_id": "1977651877376679937",
+    "task_type": "pattern_extract",
+    "status": "SUCCESS",
+    "created_at": "2025-10-13T08:25:25.757384",
+    "completed_at": "2025-10-13T08:26:12.454245",
+    "result_data": {
+      "taskId": "1977651877376679937",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_qjxol_1760343950.png",
+          "fileType": "png",
+          "taskCostTime": "35",
+          "nodeId": "225"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\whiteiguana1008@gmail.com\\20251013_162607.png"
+    ],
+    "error_message": null
+  },
+  {
+    "id": 27,
+    "tenant_task_id": "tenant_164e1be35238444d",
+    "user_id": "eason",
+    "runninghub_task_id": "1977659023891779585",
+    "task_type": "pattern_extract",
+    "status": "SUCCESS",
+    "created_at": "2025-10-13T08:53:49.560879",
+    "completed_at": "2025-10-13T08:54:42.454935",
+    "result_data": {
+      "taskId": "1977659023891779585",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_fntkn_1760345665.png",
+          "fileType": "png",
+          "taskCostTime": "43",
+          "nodeId": "225"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\eason\\20251013_165437.png"
+    ],
+    "error_message": null
+  },
+  {
+    "id": 28,
+    "tenant_task_id": "tenant_e1748576dfd34b4e",
+    "user_id": "eason",
+    "runninghub_task_id": "1977660112087277570",
+    "task_type": "pattern_extract",
+    "status": "PENDING",
+    "created_at": "2025-10-13T08:58:09.007961",
+    "completed_at": null,
+    "result_data": null,
+    "storage_paths": null,
+    "error_message": null
+  },
+  {
+    "id": 29,
+    "tenant_task_id": "tenant_5947f0f8347b44cd",
+    "user_id": "eason",
+    "runninghub_task_id": "1977660453121941505",
+    "task_type": "pattern_extract",
+    "status": "SUCCESS",
+    "created_at": "2025-10-13T08:59:30.533174",
+    "completed_at": "2025-10-13T09:00:32.399423",
+    "result_data": {
+      "taskId": "1977660453121941505",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_ruugy_1760346005.png",
+          "fileType": "png",
+          "taskCostTime": "48",
+          "nodeId": "225"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\eason\\20251013_170023.png"
+    ],
+    "error_message": null
+  },
+  {
+    "id": 30,
+    "tenant_task_id": "tenant_7079c9e229c54bc2",
+    "user_id": "whiteiguana1008@gmail.com",
+    "runninghub_task_id": "1977663717087268866",
+    "task_type": "pattern_extract",
+    "status": "SUCCESS",
+    "created_at": "2025-10-13T09:12:28.566665",
+    "completed_at": "2025-10-13T09:15:52.335533",
+    "result_data": {
+      "taskId": "1977663717087268866",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_rnylx_1760346927.png",
+          "fileType": "png",
+          "taskCostTime": "188",
+          "nodeId": "225"
+        }
+      ]
+    },
+    "storage_paths": [
+      "output\\whiteiguana1008@gmail.com\\20251013_171545.png"
+    ],
+    "error_message": null
   }
 ]

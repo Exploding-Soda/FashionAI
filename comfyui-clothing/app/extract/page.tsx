@@ -78,14 +78,24 @@ export default function ExtractPage() {
       })),
     [],
   )
-  const currentStripePayload = useMemo(() => {
+const currentStripePayload = useMemo(() => {
     if (!isStripePattern || !stripePatternUnit || stripePatternUnit.length === 0) return null
-    return {
+    const payload: {
+      stripePatternUnit: StripePatternUnit[]
+      paletteGroups: PaletteGroup[]
+      generatedAt: number
+      sourceImage?: string | null
+    } = {
       stripePatternUnit: stripePatternUnit.map((unit) => ({ ...unit })),
       paletteGroups: clonePaletteGroups(paletteGroups),
       generatedAt: Date.now(),
     }
-  }, [isStripePattern, stripePatternUnit, paletteGroups, clonePaletteGroups])
+    const sourceImage = extractedImages[0]
+    if (typeof sourceImage === "string" && sourceImage.trim().length > 0) {
+      payload.sourceImage = sourceImage
+    }
+    return payload
+  }, [isStripePattern, stripePatternUnit, paletteGroups, clonePaletteGroups, extractedImages])
   const normalizeStatus = useCallback(
     (status?: string | null): "PENDING" | "SUCCESS" | "FAILED" => {
       const upper = (status ?? "").trim().toUpperCase()
@@ -309,14 +319,28 @@ export default function ExtractPage() {
     if (currentStripePayload) {
       try {
         if (typeof window !== "undefined") {
-          const payloadForStorage = {
+          const payloadForStorage: {
+            stripePatternUnit: StripePatternUnit[]
+            paletteGroups: PaletteGroup[]
+            generatedAt: number
+            sourceImage?: string | null
+          } = {
             stripePatternUnit: currentStripePayload.stripePatternUnit,
             paletteGroups: currentStripePayload.paletteGroups,
             generatedAt: currentStripePayload.generatedAt,
           }
-          const serialized = JSON.stringify(payloadForStorage)
-          const byteLength =
+          if (currentStripePayload.sourceImage) {
+            payloadForStorage.sourceImage = currentStripePayload.sourceImage
+          }
+          let serialized = JSON.stringify(payloadForStorage)
+          let byteLength =
             typeof TextEncoder !== "undefined" ? new TextEncoder().encode(serialized).length : serialized.length * 2
+          if (byteLength > MAX_SESSION_PAYLOAD_BYTES && "sourceImage" in payloadForStorage) {
+            delete payloadForStorage.sourceImage
+            serialized = JSON.stringify(payloadForStorage)
+            byteLength =
+              typeof TextEncoder !== "undefined" ? new TextEncoder().encode(serialized).length : serialized.length * 2
+          }
           if (byteLength > MAX_SESSION_PAYLOAD_BYTES) {
             console.warn(`Stripe payload too large for sessionStorage (${byteLength} bytes); skipping persistence.`)
             window.sessionStorage.removeItem(STRIPE_STORAGE_KEY)

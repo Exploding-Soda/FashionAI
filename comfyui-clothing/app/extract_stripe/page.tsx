@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { extractApiClient, type PaletteGroup, type StripePatternUnit, type StripeLLMVariation } from "@/lib/extract-api-client"
 
 const STRIPE_STORAGE_KEY = "extract_stripe_payload"
+const MAX_SESSION_PAYLOAD_BYTES = 2 * 1024 * 1024
 
 interface StripePayload {
   stripePatternUnit: StripePatternUnit[]
@@ -123,6 +124,8 @@ export default function ExtractStripePage() {
   const [stripeUnits, setStripeUnits] = useState<EditableStripeUnit[]>([])
   const [paletteGroups, setPaletteGroups] = useState<PaletteGroup[]>([])
   const [payloadMeta, setPayloadMeta] = useState<{ generatedAt?: number; sourceImage?: string | null }>({})
+  const [isReextracting, setIsReextracting] = useState(false)
+  const [reextractError, setReextractError] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [selectedStripeId, setSelectedStripeId] = useState<string | null>(null)
   const [editingStripeId, setEditingStripeId] = useState<string | null>(null)
@@ -137,6 +140,20 @@ export default function ExtractStripePage() {
   const [copiedStripe, setCopiedStripe] = useState<StripeUnitSnapshot | null>(null)
   const aiRequestSignatureRef = useRef<string>("")
   const skipNextAiAutoFetchRef = useRef(false)
+
+  const hydrateStripeUnits = useCallback(
+    (units: StripePatternUnit[]) =>
+      units.map((unit) => ({
+        id: createStripeId(),
+        color: {
+          r: clampChannel(unit?.color?.r ?? 0),
+          g: clampChannel(unit?.color?.g ?? 0),
+          b: clampChannel(unit?.color?.b ?? 0),
+        },
+        widthPx: Math.max(1, Math.round(unit?.widthPx ?? 10)),
+      })),
+    [],
+  )
 
   const drawStripesWithRotation = useCallback(
     (
@@ -204,15 +221,7 @@ export default function ExtractStripePage() {
         setLoadError("The stripe pattern payload is incomplete. Please try extracting again.")
         return
       }
-      const enriched = parsed.stripePatternUnit.map((unit, idx) => ({
-        id: `${idx}-${Date.now()}`,
-        color: {
-          r: clampChannel(unit?.color?.r ?? 0),
-          g: clampChannel(unit?.color?.g ?? 0),
-          b: clampChannel(unit?.color?.b ?? 0),
-        },
-        widthPx: Math.max(1, Math.round(unit?.widthPx ?? 10)),
-      }))
+      const enriched = hydrateStripeUnits(parsed.stripePatternUnit)
       setStripeUnits(enriched)
       setPaletteGroups(Array.isArray(parsed.paletteGroups) ? parsed.paletteGroups : [])
       setPayloadMeta({ generatedAt: parsed.generatedAt, sourceImage: parsed.sourceImage })
@@ -220,7 +229,7 @@ export default function ExtractStripePage() {
       console.error("Failed to parse stripe payload:", error)
       setLoadError("Unable to parse stripe pattern data. Please try again.")
     }
-  }, [])
+  }, [hydrateStripeUnits])
 
   const handleColorChange = useCallback((id: string, hex: string) => {
     const rgb = hexToRgb(hex)
@@ -385,6 +394,80 @@ export default function ExtractStripePage() {
       })),
     [stripeUnits],
   )
+
+  const handleReextract = useCallback(async () => {
+    if (!payloadMeta?.sourceImage) {
+      setReextractError("缺少原始图片，无法重新提取。请返回上一页并重新生成。")
+      return
+    }
+    setReextractError(null)
+    setIsReextracting(true)
+    try {
+      const response = await fetch(payloadMeta.sourceImage)
+      if (!response.ok) {
+        throw new Error("无法获取原始图片。")
+      }
+      const blob = await response.blob()
+      if (!blob || blob.size === 0) {
+        throw new Error("获取到的图片为空。")
+      }
+      const inferredType = blob.type || "image/png"
+      const extension = inferredType.includes("jpeg") ? "jpg" : inferredType.includes("png") ? "png" : "png"
+      const file = new File([blob], `stripe-source-${Date.now()}.${extension}`, { type: inferredType })
+      const palette = await extractApiClient.requestColorPalettes(file)
+      const groups = Array.isArray(palette?.groups) ? palette.groups : []
+      setPaletteGroups(groups)
+      const stripePattern = Array.isArray(palette?.stripePatternUnit)
+        ? palette.stripePatternUnit.filter((unit) => unit && typeof unit.widthPx === "number")
+        : []
+      if (stripePattern.length === 0) {
+        setStripeUnits([])
+        setReextractError("本次分析未检测到条纹结构，请检查图片或稍后再试。")
+        if (typeof window !== "undefined") {
+          window.sessionStorage.removeItem(STRIPE_STORAGE_KEY)
+        }
+      } else {
+        const refreshedUnits = hydrateStripeUnits(stripePattern)
+        setStripeUnits(refreshedUnits)
+        if (typeof window !== "undefined") {
+          const payloadToPersist: StripePayload = {
+            stripePatternUnit: stripePattern,
+            paletteGroups: groups,
+            sourceImage: payloadMeta.sourceImage,
+            generatedAt: Date.now(),
+          }
+          let serialized = JSON.stringify(payloadToPersist)
+          let byteLength =
+            typeof TextEncoder !== "undefined" ? new TextEncoder().encode(serialized).length : serialized.length * 2
+          if (byteLength > MAX_SESSION_PAYLOAD_BYTES && payloadToPersist.sourceImage) {
+            delete payloadToPersist.sourceImage
+            serialized = JSON.stringify(payloadToPersist)
+            byteLength =
+              typeof TextEncoder !== "undefined" ? new TextEncoder().encode(serialized).length : serialized.length * 2
+          }
+          if (byteLength > MAX_SESSION_PAYLOAD_BYTES) {
+            console.warn(
+              `Stripe payload too large after re-extract (${byteLength} bytes); skipping sessionStorage update.`,
+            )
+            window.sessionStorage.removeItem(STRIPE_STORAGE_KEY)
+          } else {
+            window.sessionStorage.setItem(STRIPE_STORAGE_KEY, serialized)
+          }
+        }
+      }
+      setPayloadMeta((prev) => ({
+        ...prev,
+        generatedAt: Date.now(),
+        sourceImage: payloadMeta.sourceImage,
+      }))
+      skipNextAiAutoFetchRef.current = true
+    } catch (error) {
+      console.error("Re-extract stripe units failed:", error)
+      setReextractError(error instanceof Error ? error.message : "重新提取失败，请稍后再试。")
+    } finally {
+      setIsReextracting(false)
+    }
+  }, [hydrateStripeUnits, payloadMeta?.sourceImage])
 
   const fetchAiVariations = useCallback(async () => {
     if (normalizedUnitsForAi.length === 0) return
@@ -673,11 +756,35 @@ export default function ExtractStripePage() {
                       </Label>
                       <p className="text-sm text-muted-foreground">左键选中色块后，可从悬浮操作打开对话框微调颜色与宽度。</p>
                     </div>
-                    <Badge variant="outline" className="gap-1 text-xs">
-                      <Ruler className="size-3.5" />
-                      {Math.round(totalUnitWidth)}px
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="gap-1 text-xs">
+                        <Ruler className="size-3.5" />
+                        {Math.round(totalUnitWidth)}px
+                      </Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1"
+                        onClick={handleReextract}
+                        disabled={isReextracting}
+                      >
+                        {isReextracting ? (
+                          <>
+                            <RefreshCw className="size-3.5 animate-spin" />
+                            重新提取中…
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="size-3.5" />
+                            重新提取
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
+                  {reextractError ? (
+                    <p className="text-xs text-destructive">{reextractError}</p>
+                  ) : null}
                   <div className="rounded-lg border border-border/30 bg-background/60 p-4">
                     {stripeUnits.length > 0 ? (
                       <div className="flex h-24 w-full overflow-hidden rounded-md border border-border/40 shadow-inner">
