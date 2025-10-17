@@ -31,6 +31,7 @@ import { useRouter } from "next/navigation"
 import { LoginModal } from "@/components/login-modal"
 import { RegisterModal } from "@/components/register-modal"
 import { useAuth } from "@/contexts/auth-context"
+export const dynamic = "force-dynamic";
 
 export default function LandingPage() {
   const [isScrolled, setIsScrolled] = useState(false)
