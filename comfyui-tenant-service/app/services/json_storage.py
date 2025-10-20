@@ -166,7 +166,7 @@ class JSONStorage:
         task_records = self._load_data("task_records")
         return next((t for t in task_records if t.get("tenant_task_id") == tenant_task_id), None)
     
-    def update_task_success(self, tenant_task_id: str, result_data: Dict, storage_paths: List[str]) -> bool:
+    def update_task_success(self, tenant_task_id: str, result_data: Dict, storage_paths: List) -> bool:
         """Update task record to success status"""
         task_records = self._load_data("task_records")
         

@@ -41,6 +41,7 @@ const MAX_SESSION_PAYLOAD_BYTES = 2 * 1024 * 1024
 export default function ExtractPage() {
   const router = useRouter()
   const { isAuthenticated, isLoading } = useAuth()
+  const HISTORY_PAGE_SIZE = 10
   const [uploadedImage, setUploadedImage] = useState<string | null>(null)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -59,6 +60,9 @@ export default function ExtractPage() {
   const extractedFileInputRef = useRef<HTMLInputElement>(null)
   const [taskHistory, setTaskHistory] = useState<TaskHistoryItem[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+  const [historyPage, setHistoryPage] = useState(1)
+  const [hasMoreHistory, setHasMoreHistory] = useState(false)
+  const [historyLimit, setHistoryLimit] = useState<number>(HISTORY_PAGE_SIZE)
   const variantsSectionRef = useRef<HTMLDivElement | null>(null)
   const [variantCompositeUrl, setVariantCompositeUrl] = useState<string | null>(null)
   const [isGeneratingVariant, setIsGeneratingVariant] = useState(false)
@@ -302,16 +306,39 @@ const currentStripePayload = useMemo(() => {
     }
   }
 
-  const loadTaskHistory = useCallback(async () => {
+  const loadTaskHistory = useCallback(async (page: number = 1) => {
+    if (historyLimit <= 0) return
     setIsLoadingHistory(true)
     try {
-      const history = await extractApiClient.getTaskHistory(1)
+      const history = await extractApiClient.getTaskHistory(page, undefined, historyLimit)
       setTaskHistory(history)
+      setHistoryPage(page)
+      setHasMoreHistory(history.length === historyLimit)
     } catch (e) {
       console.error("Load task history error:", e)
+      setHasMoreHistory(false)
     } finally {
       setIsLoadingHistory(false)
     }
+  }, [historyLimit])
+
+  React.useEffect(() => {
+    const computeLimit = () => {
+      if (typeof window === "undefined") return
+      const width = window.innerWidth
+      const cardWidth = 132
+      const padding = 96
+      const available = Math.max(0, width - padding)
+      const limit = Math.min(
+        HISTORY_PAGE_SIZE,
+        Math.max(1, Math.floor((available + 12) / cardWidth))
+      )
+      setHistoryLimit(prev => (prev !== limit ? limit : prev))
+    }
+
+    computeLimit()
+    window.addEventListener("resize", computeLimit)
+    return () => window.removeEventListener("resize", computeLimit)
   }, [])
 
   const handleGenerateVariants = async () => {
@@ -489,9 +516,9 @@ const currentStripePayload = useMemo(() => {
 
   React.useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      void loadTaskHistory()
+      void loadTaskHistory(1)
     }
-  }, [isLoading, isAuthenticated, loadTaskHistory])
+  }, [isLoading, isAuthenticated, historyLimit, loadTaskHistory])
 
   React.useEffect(() => {
     if (paletteGroups.length === 0 && selectedPaletteIndex !== 0) {
@@ -1041,7 +1068,7 @@ const currentStripePayload = useMemo(() => {
         <div className="mt-8">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Task History</h3>
-            <Button variant="outline" size="sm" className="gap-2 bg-transparent" onClick={loadTaskHistory} disabled={isLoadingHistory}>
+            <Button variant="outline" size="sm" className="gap-2 bg-transparent" onClick={() => loadTaskHistory(historyPage)} disabled={isLoadingHistory}>
               {isLoadingHistory ? <Clock className="size-4 animate-spin" /> : <Scissors className="size-4" />}
               Refresh
             </Button>
@@ -1055,39 +1082,66 @@ const currentStripePayload = useMemo(() => {
               </div>
             </div>
           ) : taskHistory.length > 0 ? (
-            <div className="grid md:grid-cols-6 gap-4">
-              {taskHistory.map((task, idx) => (
-                <motion.div key={task.tenant_task_id || idx} initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.2 }}>
-                  <Card className="border-border/50 hover:border-primary/50 transition-colors">
-                    <CardContent className="p-2">
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Badge variant={task.status === 'SUCCESS' ? 'default' : task.status === 'FAILED' ? 'destructive' : 'secondary'}>
-                            {task.status}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {task.created_at ? new Date(task.created_at).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : ''}
-                          </span>
-                        </div>
-                        <div className="text-xs font-medium truncate">
-                          {task.task_type}
-                        </div>
-                        {task.image_urls && task.image_urls.length > 0 ? (
-                          <div className="aspect-square rounded-md overflow-hidden">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={task.image_urls[0]} alt="Result" className="w-full h-full object-cover" />
+            <>
+              <div className="flex flex-nowrap justify-center gap-3 overflow-hidden">
+                {taskHistory.map((task, idx) => (
+                  <motion.div key={task.tenant_task_id || idx} initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.2 }} className="flex-none">
+                    <Card className="w-[120px] border-border/50 hover:border-primary/50 transition-colors">
+                      <CardContent className="p-2">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Badge variant={task.status === 'SUCCESS' ? 'default' : task.status === 'FAILED' ? 'destructive' : 'secondary'}>
+                              {task.status}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {task.created_at ? new Date(task.created_at).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : ''}
+                            </span>
                           </div>
-                        ) : (
-                          <div className="aspect-square rounded-md bg-muted flex items-center justify-center">
-                            <ImageIcon className="size-6 text-muted-foreground" />
+                        <div className="text-[11px] font-medium truncate">
+                            {task.task_type}
                           </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
-            </div>
+                          {task.image_urls && task.image_urls.length > 0 ? (
+                            <div className="aspect-square rounded-md overflow-hidden">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={task.thumbnail_urls?.[0] ?? task.image_urls[0]} alt="Result" className="w-full h-full object-cover" />
+                            </div>
+                          ) : (
+                            <div className="aspect-square rounded-md bg-muted flex items-center justify-center">
+                              <ImageIcon className="size-6 text-muted-foreground" />
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+              <div className="flex items-center justify-between mt-6">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => loadTaskHistory(Math.max(1, historyPage - 1))}
+                  disabled={isLoadingHistory || historyPage === 1}
+                  className="gap-2"
+                >
+                  <ChevronLeft className="size-4" />
+                  Prev
+                </Button>
+
+                <span className="text-sm text-muted-foreground">Page {historyPage}</span>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => loadTaskHistory(historyPage + 1)}
+                  disabled={isLoadingHistory || !hasMoreHistory}
+                  className="gap-2"
+                >
+                  Next
+                  <ChevronRight className="size-4" />
+                </Button>
+              </div>
+            </>
           ) : (
             <Card className="border-border/50">
               <CardContent className="py-8 text-center">

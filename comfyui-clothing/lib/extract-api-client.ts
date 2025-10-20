@@ -66,8 +66,10 @@ export interface TaskHistoryItem {
   created_at: string;
   completed_at: string | null;
   result_data: any;
-  storage_paths: string[] | null;
+  storage_paths: Array<string | { original?: string | null; thumbnail?: string | null; localPath?: string | null }> | null;
+  thumbnail_paths?: Array<string | { original?: string | null; thumbnail?: string | null }> | null;
   image_urls: string[];
+  thumbnail_urls?: string[];
   error_message: string | null;
 }
 
@@ -201,8 +203,14 @@ export class ExtractApiClient {
       [];
 
     if (storagePaths.length > 0) {
-      for (const rawPath of storagePaths) {
-        if (typeof rawPath !== "string") continue;
+      for (const entry of storagePaths) {
+        const rawPath =
+          typeof entry === "string"
+            ? entry
+            : entry?.original || entry?.localPath || null;
+
+        if (!rawPath) continue;
+
         const relative = rawPath.replace(/^\.?[\\\/]?output[\\\/]/i, "");
         const normalised = relative.replace(/\\/g, "/");
         outputs.push(`${this.baseUrl}/proxy/static/images/${normalised}`);
@@ -224,9 +232,10 @@ export class ExtractApiClient {
     return { outputs };
   }
 
-  async getTaskHistory(page: number = 1, taskType?: string): Promise<TaskHistoryItem[]> {
+  async getTaskHistory(page: number = 1, taskType?: string, limit?: number): Promise<TaskHistoryItem[]> {
     const qs = new URLSearchParams({ page: String(page) });
     if (taskType) qs.set('task_type', taskType);
+    if (limit) qs.set('limit', String(limit));
     const res = await this.makeRequest(
       `${this.baseUrl}/proxy/tasks/history?${qs.toString()}`,
       { method: "GET", headers: this.getHeaders() }

@@ -214,11 +214,21 @@ export class RedesignApiClient {
 
     // 将存储路径转换为可访问的URL
     if (data.storagePaths && Array.isArray(data.storagePaths)) {
-      const localUrls = data.storagePaths.map((path: string) => {
+      const localUrls = data.storagePaths
+        .map((entry: string | { original?: string | null; localPath?: string | null }) => {
+          const rawPath =
+            typeof entry === "string"
+              ? entry
+              : entry?.original || entry?.localPath || null;
+
+          if (!rawPath) {
+            return null;
+          }
+
         // 将本地路径转换为可访问的URL
         // 路径格式: output\\eason\\20250926_093357.png
         // 需要提取: eason/20250926_093357.png
-        const relativePath = path.replace(/^output[\\\/]/, "");
+        const relativePath = rawPath.replace(/^output[\\\/]/, "");
         const imageUrl = `${
           this.baseUrl
         }/proxy/static/images/${relativePath.replace(/\\/g, "/")}`;
@@ -226,7 +236,8 @@ export class RedesignApiClient {
         console.log("DEBUG - 构建的imageUrl:", imageUrl);
         console.log("DEBUG - API_BASE_URL:", API_BASE_URL);
         return imageUrl;
-      });
+        })
+        .filter((url): url is string => Boolean(url));
 
       return { outputs: localUrls };
     }
@@ -290,9 +301,10 @@ export class RedesignApiClient {
   /**
    * 获取用户的任务历史记录
    */
-  async getTaskHistory(page: number = 1, taskType?: string): Promise<TaskHistoryItem[]> {
+  async getTaskHistory(page: number = 1, taskType?: string, limit?: number): Promise<TaskHistoryItem[]> {
     const qs = new URLSearchParams({ page: String(page) });
     if (taskType) qs.set('task_type', taskType);
+    if (limit) qs.set('limit', String(limit));
     const response = await this.makeRequest(
       `${this.baseUrl}/proxy/tasks/history?${qs.toString()}`,
       {
@@ -315,8 +327,10 @@ export interface TaskHistoryItem {
   created_at: string;
   completed_at: string | null;
   result_data: any;
-  storage_paths: string[] | null;
+  storage_paths: Array<string | { original?: string | null; thumbnail?: string | null; localPath?: string | null }> | null;
+  thumbnail_paths?: Array<string | { original?: string | null; thumbnail?: string | null }> | null;
   image_urls: string[];
+  thumbnail_urls?: string[];
   error_message: string | null;
 }
 

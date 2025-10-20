@@ -682,7 +682,7 @@ async def get_task_history(
     current_user = Depends(get_current_user),
     db: Session = Depends(get_db),
     page: int = 1,
-    limit: int = 20,
+    limit: int = 10,
     task_type: str | None = None,
 ):
     """
@@ -719,6 +719,7 @@ async def get_task_history(
         for record in task_records:
             # 构建图片URL
             image_urls = []
+            thumbnail_urls = []
             if record.get("storage_paths"):
                 storage_paths = record["storage_paths"]
                 if isinstance(storage_paths, str):
@@ -729,16 +730,35 @@ async def get_task_history(
                     except:
                         storage_paths = [storage_paths]
                 
-                for path in storage_paths:
-                    if path:
-                        # 将存储路径转换为可访问的URL
+                if not isinstance(storage_paths, list):
+                    storage_paths = [storage_paths]
+                
+                for entry in storage_paths:
+                    original_path = None
+                    thumbnail_path = None
+                    
+                    if isinstance(entry, dict):
+                        original_path = entry.get("original") or entry.get("localPath")
+                        thumbnail_path = entry.get("thumbnail") or entry.get("thumbnailPath")
+                    else:
+                        original_path = entry
+                    
+                    if original_path:
                         import re
-                        relative_path = re.sub(r'^output[\\\/]', '', path)
-                        # 返回相对路径，让前端通过Next.js API路由代理请求
-                        # 先处理路径分隔符，避免在f-string中使用反斜杠
+                        relative_path = re.sub(r'^output[\\\/]', '', str(original_path))
                         normalized_path = relative_path.replace('\\', '/')
                         image_url = f"/api/proxy/static/images/{normalized_path}"
                         image_urls.append(image_url)
+                        
+                        if not thumbnail_path:
+                            thumbnail_path = original_path
+                    
+                    if thumbnail_path:
+                        import re
+                        relative_thumb = re.sub(r'^output[\\\/]', '', str(thumbnail_path))
+                        normalized_thumb = relative_thumb.replace('\\', '/')
+                        thumb_url = f"/api/proxy/static/images/{normalized_thumb}"
+                        thumbnail_urls.append(thumb_url)
             
             history_item = {
                 "id": record.get("id"),
@@ -751,7 +771,9 @@ async def get_task_history(
                 "completed_at": record.get("completed_at"),
                 "result_data": record.get("result_data"),
                 "storage_paths": record.get("storage_paths"),
+                "thumbnail_paths": record.get("thumbnail_paths"),
                 "image_urls": image_urls,
+                "thumbnail_urls": thumbnail_urls,
                 "error_message": record.get("error_message")
             }
             history_items.append(history_item)
@@ -814,10 +836,13 @@ async def get_stored_task_outputs(
             )
             
             # 提取存储路径
-            storage_paths = []
+            storage_entries = []
             for output in stored_outputs:
                 if "localPath" in output:
-                    storage_paths.append(output["localPath"])
+                    storage_entries.append({
+                        "original": output["localPath"],
+                        "thumbnail": output.get("thumbnailPath")
+                    })
             
             # 更新任务记录（如果存在）
             # 这里需要根据task_id查找对应的tenant_task_id
@@ -827,7 +852,7 @@ async def get_stored_task_outputs(
             return {
                 "taskId": task_id,
                 "outputs": stored_outputs,
-                "storagePaths": storage_paths,
+                "storagePaths": storage_entries,
                 "message": "图片已下载并存储到本地"
             }
         else:
@@ -1004,12 +1029,15 @@ async def complete_task_with_storage(
             )
             
             # 提取存储路径
-            storage_paths = []
+            storage_entries = []
             for output in stored_outputs:
                 if "localPath" in output:
-                    storage_paths.append(output["localPath"])
+                    storage_entries.append({
+                        "original": output["localPath"],
+                        "thumbnail": output.get("thumbnailPath")
+                    })
             
-            logger.info(f"图片存储完成，路径: {storage_paths}")
+            logger.info(f"图片存储完成，路径: {storage_entries}")
             
             # 3. 更新任务记录
             # 首先找到对应的tenant任务记录
@@ -1026,7 +1054,7 @@ async def complete_task_with_storage(
                 success = task_record_service.update_task_success(
                     tenant_task_id,
                     outputs_data,
-                    storage_paths,
+                    storage_entries,
                     db
                 )
                 
@@ -1040,7 +1068,7 @@ async def complete_task_with_storage(
                 "taskId": task_id,
                 "status": "completed",
                 "message": "图片已下载并存储到本地",
-                "storagePaths": storage_paths,
+                "storagePaths": storage_entries,
                 "outputCount": len(stored_outputs)
             }
             

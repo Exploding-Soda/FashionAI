@@ -4,6 +4,7 @@ from .routers import auth, tenants, proxy
 from .services.logger import get_main_logger
 from .services.database_init import init_database
 from .services.config import get_settings
+from .services.image_storage import image_storage_service
 
 def create_app() -> FastAPI:
     logger = get_main_logger()
@@ -47,6 +48,11 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix="/auth", tags=["authentication"])
     app.include_router(tenants.router, prefix="/tenants", tags=["tenants"])
     app.include_router(proxy.router, prefix="/proxy", tags=["proxy"])
+
+    @app.on_event("startup")
+    async def sync_thumbnails_on_startup():
+        logger.info("同步缩略图目录状态")
+        image_storage_service.sync_all_thumbnails()
     
     logger.info("多租户微服务配置完成")
     return app

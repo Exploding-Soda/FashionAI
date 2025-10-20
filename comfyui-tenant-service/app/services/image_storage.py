@@ -10,11 +10,19 @@ from typing import List, Dict, Any, Optional
 from pathlib import Path
 from ..services.logger import get_image_storage_logger
 
+try:
+    from PIL import Image
+except ImportError:  # pragma: no cover - optional dependency
+    Image = None
+
 logger = get_image_storage_logger()
 
 class ImageStorageService:
     """图片存储服务"""
     
+    THUMBNAIL_DIR_NAME = "thumbnail"
+    THUMBNAIL_SIZE = (512, 512)
+
     def __init__(self, base_storage_path: str = "./output"):
         self.base_storage_path = Path(base_storage_path)
         self.base_storage_path.mkdir(parents=True, exist_ok=True)
@@ -37,6 +45,8 @@ class ImageStorageService:
         """
         user_output_dir = self.base_storage_path / user_id
         user_output_dir.mkdir(parents=True, exist_ok=True)
+        thumbnail_dir = user_output_dir / self.THUMBNAIL_DIR_NAME
+        thumbnail_dir.mkdir(parents=True, exist_ok=True)
         
         stored_outputs = []
         
@@ -49,12 +59,16 @@ class ImageStorageService:
                         user_output_dir, 
                         output.get("fileType", "png")
                     )
+                    thumbnail_path = None
                     
                     if local_path:
+                        thumbnail_path = self._generate_thumbnail(local_path, thumbnail_dir)
+
                         # 创建新的输出记录，包含本地路径
                         stored_output = {
                             "fileUrl": output["fileUrl"],  # 保留原始URL
                             "localPath": str(local_path),  # 添加本地路径
+                            "thumbnailPath": str(thumbnail_path) if thumbnail_path else None,
                             "fileType": output.get("fileType", "png"),
                             "taskCostTime": output.get("taskCostTime", ""),
                             "nodeId": output.get("nodeId", ""),
@@ -72,7 +86,7 @@ class ImageStorageService:
             except Exception as e:
                 logger.error(f"处理输出时出错: {str(e)}")
                 stored_outputs.append(output)  # 保留原始输出
-        
+                
         return stored_outputs
     
     async def _download_image(
@@ -115,6 +129,77 @@ class ImageStorageService:
             logger.error(f"下载图片失败 {image_url}: {str(e)}")
             return None
     
+    def _generate_thumbnail(self, source_path: Path, thumbnail_dir: Path) -> Optional[Path]:
+        """
+        生成缩略图
+        """
+        if Image is None:
+            logger.warning("Pillow 未安装，无法生成缩略图")
+            return None
+
+        try:
+            thumbnail_dir.mkdir(parents=True, exist_ok=True)
+            target_path = thumbnail_dir / source_path.name
+
+            with Image.open(source_path) as img:
+                img.thumbnail(self.THUMBNAIL_SIZE, getattr(Image, "Resampling", Image).LANCZOS)
+                img_format = img.format or source_path.suffix.lstrip(".").upper() or "PNG"
+                img.save(target_path, format=img_format)
+
+            logger.info(f"缩略图生成完成: {target_path}")
+            return target_path
+        except Exception as e:
+            logger.error(f"生成缩略图失败 {source_path}: {str(e)}")
+            return None
+
+    def sync_all_thumbnails(self):
+        """
+        遍历所有用户目录，确保缩略图与原图一致
+        """
+        for user_dir in self.base_storage_path.iterdir():
+            if not user_dir.is_dir():
+                continue
+            if user_dir.name == self.THUMBNAIL_DIR_NAME:
+                # 防止误把 thumbnail 目录当成用户目录
+                continue
+            self._sync_user_thumbnails(user_dir)
+
+    def _sync_user_thumbnails(self, user_dir: Path):
+        """
+        同步指定用户目录的缩略图
+        """
+        if Image is None:
+            logger.warning("Pillow 未安装，跳过缩略图同步")
+            return
+
+        thumbnail_dir = user_dir / self.THUMBNAIL_DIR_NAME
+        thumbnail_dir.mkdir(parents=True, exist_ok=True)
+
+        originals = {
+            file.name: file
+            for file in user_dir.iterdir()
+            if file.is_file()
+        }
+        thumbnails = {
+            file.name: file
+            for file in thumbnail_dir.iterdir()
+            if file.is_file()
+        }
+
+        # 生成缺失的缩略图
+        for name, original_path in originals.items():
+            if name not in thumbnails:
+                self._generate_thumbnail(original_path, thumbnail_dir)
+
+        # 删除多余的缩略图
+        for name, thumb_path in thumbnails.items():
+            if name not in originals:
+                try:
+                    thumb_path.unlink(missing_ok=True)
+                    logger.info(f"删除多余的缩略图: {thumb_path}")
+                except Exception as e:
+                    logger.error(f"删除缩略图失败 {thumb_path}: {str(e)}")
+
     def get_image_url(self, local_path: str, base_url: str = "http://localhost:8081") -> str:
         """
         生成图片的访问URL

@@ -40,6 +40,8 @@ export default function ApplyPage() {
   const [resultImages, setResultImages] = useState<string[]>([])
   const [taskId, setTaskId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [modalImage, setModalImage] = useState<string | null>(null)
   const modelInputRef = useRef<HTMLInputElement>(null)
   const patternInputRef = useRef<HTMLInputElement>(null)
 
@@ -146,7 +148,19 @@ export default function ApplyPage() {
     }
   }
 
+  const openImageModal = (imageUrl: string | null) => {
+    if (!imageUrl) return
+    setModalImage(imageUrl)
+    setIsModalOpen(true)
+  }
+
+  const closeImageModal = () => {
+    setIsModalOpen(false)
+    setModalImage(null)
+  }
+
   return (
+    <>
     <div className="min-h-screen bg-background">
       {/* Header */}
       <CollapsibleHeader
@@ -309,13 +323,35 @@ export default function ApplyPage() {
                     </TabsList>
 
                     <TabsContent value="model" className="mt-6">
-                      <div className="relative aspect-square max-w-md mx-auto rounded-lg overflow-hidden border border-border">
+                      <div
+                        className="relative aspect-square max-w-md mx-auto rounded-lg overflow-hidden border border-border cursor-zoom-in"
+                        onClick={() => openImageModal(modelImage)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault()
+                            openImageModal(modelImage)
+                          }
+                        }}
+                      >
                         <Image src={modelImage || "/placeholder.svg"} alt="Model image" fill className="object-cover" />
                       </div>
                     </TabsContent>
 
                     <TabsContent value="pattern" className="mt-6">
-                      <div className="relative aspect-square max-w-md mx-auto rounded-lg overflow-hidden border border-border">
+                      <div
+                        className="relative aspect-square max-w-md mx-auto rounded-lg overflow-hidden border border-border cursor-zoom-in"
+                        onClick={() => openImageModal(patternImage)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault()
+                            openImageModal(patternImage)
+                          }
+                        }}
+                      >
                         <Image
                           src={patternImage || "/placeholder.svg"}
                           alt="Pattern image"
@@ -336,7 +372,19 @@ export default function ApplyPage() {
                       ) : resultImages.length > 0 ? (
                         <div className="grid gap-4 md:grid-cols-2">
                           {resultImages.map((url, index) => (
-                            <div key={index} className="relative aspect-square rounded-lg overflow-hidden border border-border bg-muted/20">
+                            <div
+                              key={index}
+                              className="relative aspect-square rounded-lg overflow-hidden border border-border bg-muted/20 cursor-zoom-in"
+                              onClick={() => openImageModal(url)}
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault()
+                                  openImageModal(url)
+                                }
+                              }}
+                            >
                               <img src={url} alt={`Result ${index + 1}`} className="absolute inset-0 h-full w-full object-cover" />
                             </div>
                           ))}
@@ -374,11 +422,11 @@ export default function ApplyPage() {
                 )}
               </CardContent>
             </Card>
-          </div>
         </div>
+      </div>
 
-        {/* Application History */}
-        <div className="mt-8">
+      {/* Application History */}
+      <div className="mt-8">
           <h3 className="text-lg font-semibold mb-4">Recent Applications</h3>
           <div className="grid md:grid-cols-4 gap-4">
             {[1, 2, 3, 4].map((i) => (
@@ -411,5 +459,31 @@ export default function ApplyPage() {
         </div>
       </div>
     </div>
+
+    {isModalOpen && modalImage && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+        onClick={closeImageModal}
+        role="presentation"
+      >
+        <div className="relative w-full max-w-5xl max-h-[90vh]">
+          <img
+            src={modalImage}
+            alt="Enlarged view"
+            className="h-full w-full object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            className="absolute top-4 right-4 bg-black/50 text-white border-white/20 hover:bg-black/70"
+            onClick={closeImageModal}
+          >
+            Close
+          </Button>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

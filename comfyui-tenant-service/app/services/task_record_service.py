@@ -69,7 +69,7 @@ class TaskRecordService:
         self,
         tenant_task_id: str,
         result_data: Dict[str, Any],
-        storage_paths: List[str],
+        storage_paths: List[Any],
         db
     ) -> bool:
         """

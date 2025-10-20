@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { motion } from "framer-motion"
 import {
   Upload,
@@ -21,6 +21,8 @@ import {
   Redo,
   Minus,
   Plus,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -39,6 +41,7 @@ import { useRouter } from "next/navigation"
 export default function RedesignPage() {
   const { isAuthenticated, isLoading } = useAuth()
   const router = useRouter()
+  const MAX_HISTORY_ITEMS = 10
   const [uploadedImage, setUploadedImage] = useState<string | null>(null)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   
@@ -66,6 +69,7 @@ export default function RedesignPage() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [hasMoreHistory, setHasMoreHistory] = useState(false)
+  const [historyLimit, setHistoryLimit] = useState<number>(MAX_HISTORY_ITEMS)
   const [selectedImages, setSelectedImages] = useState<string[]>([])
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [isImageModalOpen, setIsImageModalOpen] = useState(false)
@@ -165,13 +169,6 @@ export default function RedesignPage() {
     }
   }, [isAuthenticated, isLoading, router])
 
-  // Load task history on component mount
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadTaskHistory(1, false)
-    }
-  }, [isAuthenticated])
-
 
   // 全局滚轮事件处理，阻止在画板区域内的页面滚动
   useEffect(() => {
@@ -191,22 +188,46 @@ export default function RedesignPage() {
     return () => window.removeEventListener('wheel', handleGlobalWheel)
   }, [])
 
-  const loadTaskHistory = async (page: number = 1, append: boolean = false) => {
+  const loadTaskHistory = useCallback(async (page: number = 1) => {
+    if (historyLimit <= 0) return
     setIsLoadingHistory(true)
     try {
-      const history = await redesignApiClient.getTaskHistory(page, 'targeted_redesign')
-      if (append) {
-        setTaskHistory(prev => [...prev, ...history])
-      } else {
-        setTaskHistory(history)
-      }
+      const history = await redesignApiClient.getTaskHistory(page, 'targeted_redesign', historyLimit)
+      setTaskHistory(history)
       setCurrentPage(page)
+      setHasMoreHistory(history.length === historyLimit)
     } catch (error) {
       console.error('Failed to load task history:', error)
+      setHasMoreHistory(false)
     } finally {
       setIsLoadingHistory(false)
     }
-  }
+  }, [historyLimit])
+
+  useEffect(() => {
+    const computeLimit = () => {
+      if (typeof window === "undefined") return
+      const width = window.innerWidth
+      const cardWidth = 132 // approx card width plus gap
+      const padding = 96
+      const available = Math.max(0, width - padding)
+      const limit = Math.min(
+        MAX_HISTORY_ITEMS,
+        Math.max(1, Math.floor((available + 12) / cardWidth))
+      )
+      setHistoryLimit(prev => (prev !== limit ? limit : prev))
+    }
+
+    computeLimit()
+    window.addEventListener("resize", computeLimit)
+    return () => window.removeEventListener("resize", computeLimit)
+  }, [])
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadTaskHistory(1)
+    }
+  }, [historyLimit, isAuthenticated, loadTaskHistory])
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -1394,7 +1415,7 @@ ${prompts[3]}
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => loadTaskHistory(1, false)}
+              onClick={() => loadTaskHistory(currentPage)}
               disabled={isLoadingHistory}
               className="gap-2"
             >
@@ -1416,15 +1437,16 @@ ${prompts[3]}
             </div>
           ) : taskHistory.length > 0 ? (
             <>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+              <div className="flex flex-nowrap justify-center gap-3">
                 {taskHistory.map((task, index) => (
                   <motion.div
                     key={task.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
+                    className="flex-none"
                   >
-                    <Card className="border-border/50 hover:border-primary/50 transition-colors group cursor-pointer">
+                    <Card className="w-[120px] border-border/50 hover:border-primary/50 transition-colors group cursor-pointer">
                       <CardContent className="p-3">
                         <div className="space-y-2">
                           {/* 状态和日期 */}
@@ -1444,7 +1466,7 @@ ${prompts[3]}
                           </div>
                           
                           {/* 任务类型 */}
-                          <div className="text-xs font-medium text-center truncate">
+                          <div className="text-[11px] font-medium text-center truncate">
                             {task.task_type === 'targeted_redesign' ? 'Redesign' : task.task_type}
                           </div>
                           
@@ -1452,8 +1474,9 @@ ${prompts[3]}
                           {task.image_urls && task.image_urls.length > 0 ? (
                               <div className="aspect-square rounded-md overflow-hidden cursor-pointer hover:opacity-90 transition-opacity relative"
                                    onClick={() => handleImageClick(task)}>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
-                                src={task.image_urls[0]}
+                                src={task.thumbnail_urls?.[0] ?? task.image_urls[0]}
                                 alt={`Result`}
                                 className="w-full h-full object-cover"
                               />
@@ -1474,25 +1497,32 @@ ${prompts[3]}
                   </motion.div>
                 ))}
               </div>
-              
-                {/* Load More Button */}
-              {hasMoreHistory && (
-                <div className="flex justify-center mt-6">
-                  <Button 
-                    variant="outline" 
-                      onClick={() => loadTaskHistory(currentPage + 1, true)}
-                    disabled={isLoadingHistory}
-                    className="gap-2"
-                  >
-                    {isLoadingHistory ? (
-                      <Clock className="size-4 animate-spin" />
-                    ) : (
-                      <Wand2 className="size-4" />
-                    )}
-                    Load More
-                  </Button>
-                </div>
-              )}
+
+              <div className="flex items-center justify-between mt-6">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => loadTaskHistory(Math.max(1, currentPage - 1))}
+                  disabled={isLoadingHistory || currentPage === 1}
+                  className="gap-2"
+                >
+                  <ChevronLeft className="size-4" />
+                  Prev
+                </Button>
+
+                <span className="text-sm text-muted-foreground">Page {currentPage}</span>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => loadTaskHistory(currentPage + 1)}
+                  disabled={isLoadingHistory || !hasMoreHistory}
+                  className="gap-2"
+                >
+                  Next
+                  <ChevronRight className="size-4" />
+                </Button>
+              </div>
             </>
           ) : (
             <Card className="border-border/50">
