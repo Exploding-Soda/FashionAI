@@ -26,7 +26,7 @@ import { CollapsibleHeader } from "@/components/collapsible-header"
 import Image from "next/image"
 import { redesignApiClient, type TaskStatusResponse } from "@/lib/redesign-api-client"
 
-const APPLICATION_PROMPT = "将图片2的印花风格转移到图片1中"
+const APPLICATION_PROMPT = "将图片2的印花完整迁移到图片1的衣服上"
 
 export default function ApplyPage() {
   const [modelImage, setModelImage] = useState<string | null>(null)
@@ -466,11 +466,11 @@ export default function ApplyPage() {
         onClick={closeImageModal}
         role="presentation"
       >
-        <div className="relative w-full max-w-5xl max-h-[90vh]">
+        <div className="relative flex max-h-[90vh] max-w-[90vw] items-center justify-center">
           <img
             src={modalImage}
             alt="Enlarged view"
-            className="h-full w-full object-contain"
+            className="h-auto w-auto max-h-[90vh] max-w-[90vw] object-contain"
             onClick={(e) => e.stopPropagation()}
           />
           <Button

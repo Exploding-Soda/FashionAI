@@ -1,0 +1,22 @@
+ssh连接地址：10.200.0.10
+账号：appadmin/root
+密码：!QAZxsw2
+
+fashion.jototech.cn
+
+=FrontEnd=
+cd /home/appadmin/FashionAI/comfyui-clothing/
+nohup npm run dev > output.log 2>&1 &
+
+=RunnningHub=
+cd /home/appadmin/FashionAI/comfyui-runninghub/
+. .venv/bin/activate
+nohup uvicorn app.main:app --reload --host 0.0.0.0 --port 8080 > uvicorn.log 2>&1 &
+
+=Tenant=
+cd /home/appadmin/FashionAI/comfyui-tenant-service/
+. .venv/bin/activate
+nohup uvicorn app.main:app --reload --host 0.0.0.0 --port 8081 > uvicorn.log 2>&1 &
+
+=找到所有uvicorn服务器并关掉=
+ps aux | grep -E "next|uvicorn" | grep -v grep | awk '{print $2}' | xargs sudo kill -9
