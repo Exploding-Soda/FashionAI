@@ -8,8 +8,6 @@ import {
   Upload,
   Download,
   Palette,
-  RotateCcw,
-  Settings,
   Zap,
   ImageIcon,
   Layers,
@@ -18,36 +16,37 @@ import {
   Clock,
   AlertCircle,
   Eye,
-  Maximize2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Slider } from "@/components/ui/slider"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
 import { CollapsibleHeader } from "@/components/collapsible-header"
 import Image from "next/image"
+import { redesignApiClient, type TaskStatusResponse } from "@/lib/redesign-api-client"
+
+const APPLICATION_PROMPT = "将图片2的印花风格转移到图片1中"
 
 export default function ApplyPage() {
   const [modelImage, setModelImage] = useState<string | null>(null)
   const [patternImage, setPatternImage] = useState<string | null>(null)
+  const [modelFile, setModelFile] = useState<File | null>(null)
+  const [patternFile, setPatternFile] = useState<File | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
-  const [applicationMode, setApplicationMode] = useState("full")
   const [processingStep, setProcessingStep] = useState("")
-  const [patternScale, setPatternScale] = useState([100])
-  const [patternOpacity, setPatternOpacity] = useState([80])
-  const [patternRotation, setPatternRotation] = useState([0])
+  const [activeTab, setActiveTab] = useState("model")
+  const [resultImages, setResultImages] = useState<string[]>([])
+  const [taskId, setTaskId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const modelInputRef = useRef<HTMLInputElement>(null)
   const patternInputRef = useRef<HTMLInputElement>(null)
 
   const handleModelUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
+      setModelFile(file)
       const reader = new FileReader()
       reader.onload = (e) => {
         setModelImage(e.target?.result as string)
@@ -59,6 +58,7 @@ export default function ApplyPage() {
   const handlePatternUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
+      setPatternFile(file)
       const reader = new FileReader()
       reader.onload = (e) => {
         setPatternImage(e.target?.result as string)
@@ -67,36 +67,84 @@ export default function ApplyPage() {
     }
   }
 
+  const pollTaskStatus = async (id: string): Promise<TaskStatusResponse> => {
+    const maxAttempts = 60
+    const delay = 2000
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const status = await redesignApiClient.getTaskStatus(id)
+      if (status.status === "SUCCESS" || status.status === "FAILED") {
+        return status
+      }
+      await new Promise((resolve) => setTimeout(resolve, delay))
+    }
+
+    throw new Error("Task processing timeout")
+  }
+
   const handleApply = async () => {
-    if (!modelImage || !patternImage) return
+    if (!modelFile || !patternFile) {
+      setError("Please upload both model and pattern images before applying.")
+      return
+    }
 
     setIsProcessing(true)
     setProgress(0)
+    setProcessingStep("Submitting application...")
+    setError(null)
+    setResultImages([])
+    setTaskId(null)
+    setActiveTab("result")
 
-    const steps = [
-      "Analyzing model structure...",
-      "Processing pattern placement...",
-      "Applying pattern transformations...",
-      "Generating final composition...",
-    ]
+    try {
+      const response = await redesignApiClient.submitRedesign({
+        prompt: APPLICATION_PROMPT,
+        image: modelFile,
+        image_2: patternFile,
+      })
 
-    for (let i = 0; i < steps.length; i++) {
-      setProcessingStep(steps[i])
-      setProgress((i + 1) * 25)
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      setTaskId(response.taskId)
+      setProgress(30)
+      setProcessingStep("Waiting for completion...")
+
+      const finalStatus = await pollTaskStatus(response.taskId)
+      if (finalStatus.status !== "SUCCESS") {
+        throw new Error("Task failed to complete successfully.")
+      }
+
+      setProgress(80)
+      setProcessingStep("Fetching results...")
+      const outputs = await redesignApiClient.completeTask(response.taskId)
+      if (!outputs.outputs || outputs.outputs.length === 0) {
+        throw new Error("No output images received.")
+      }
+
+      setResultImages(outputs.outputs)
+      setProgress(100)
+      setProcessingStep("")
+    } catch (err) {
+      console.error("Application error:", err)
+      setError(err instanceof Error ? err.message : "An unexpected error occurred.")
+      setProcessingStep("")
+    } finally {
+      setIsProcessing(false)
     }
-
-    setIsProcessing(false)
-    setProcessingStep("")
   }
 
-  const applicationModes = [
-    { value: "full", label: "Full Coverage", desc: "Apply pattern to entire garment" },
-    { value: "partial", label: "Partial Application", desc: "Apply to selected areas" },
-    { value: "border", label: "Border Pattern", desc: "Apply as border decoration" },
-    { value: "accent", label: "Accent Placement", desc: "Strategic accent positioning" },
-  ]
+  const handleDownload = () => {
+    if (resultImages.length === 0) return
 
+    try {
+      const link = document.createElement("a")
+      link.href = resultImages[0]
+      link.download = `application-${Date.now()}.png`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    } catch (err) {
+      console.error("Download failed:", err)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -186,86 +234,16 @@ export default function ApplyPage() {
               </CardContent>
             </Card>
 
-            {/* Application Settings */}
+            {/* Application Action */}
             {modelImage && patternImage && (
               <Card className="border-border/50">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Settings className="size-5" />
-                    Application Settings
+                    <CheckCircle className="size-5" />
+                    Apply Pattern
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Application Mode</Label>
-                    <Select value={applicationMode} onValueChange={setApplicationMode}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {applicationModes.map((mode) => (
-                          <SelectItem key={mode.value} value={mode.value}>
-                            <div>
-                              <div className="font-medium">{mode.label}</div>
-                              <div className="text-xs text-muted-foreground">{mode.desc}</div>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Pattern Scale: {patternScale[0]}%</Label>
-                    <Slider
-                      value={patternScale}
-                      onValueChange={setPatternScale}
-                      max={200}
-                      min={25}
-                      step={5}
-                      className="w-full"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Pattern Opacity: {patternOpacity[0]}%</Label>
-                    <Slider
-                      value={patternOpacity}
-                      onValueChange={setPatternOpacity}
-                      max={100}
-                      min={10}
-                      step={5}
-                      className="w-full"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Pattern Rotation: {patternRotation[0]}°</Label>
-                    <Slider
-                      value={patternRotation}
-                      onValueChange={setPatternRotation}
-                      max={360}
-                      min={0}
-                      step={15}
-                      className="w-full"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">Seamless Tiling</Label>
-                    <Switch defaultChecked />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">Preserve Shadows</Label>
-                    <Switch defaultChecked />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">Auto Blend</Label>
-                    <Switch defaultChecked />
-                  </div>
-
                   <Button onClick={handleApply} disabled={isProcessing} className="w-full gap-2">
                     {isProcessing ? (
                       <>
@@ -279,27 +257,29 @@ export default function ApplyPage() {
                       </>
                     )}
                   </Button>
+
+                  {error && <p className="text-sm text-destructive text-center">{error}</p>}
                 </CardContent>
               </Card>
             )}
 
             {/* Processing Status */}
-            {isProcessing && (
-              <Card className="border-secondary/50 bg-secondary/5">
-                <CardContent className="pt-6">
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <div className="size-2 rounded-full bg-secondary animate-pulse" />
-                      <span className="text-sm font-medium">{processingStep}</span>
+              {isProcessing && (
+                <Card className="border-secondary/50 bg-secondary/5">
+                  <CardContent className="pt-6">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <div className="size-2 rounded-full bg-secondary animate-pulse" />
+                        <span className="text-sm font-medium">{processingStep}</span>
+                      </div>
+                      <Progress value={progress} className="w-full" />
+                      <p className="text-xs text-muted-foreground">
+                        {taskId ? `Task ID: ${taskId}` : "Waiting for task assignment..."}
+                      </p>
                     </div>
-                    <Progress value={progress} className="w-full" />
-                    <p className="text-xs text-muted-foreground">
-                      Processing time: ~{Math.ceil(((100 - progress) / 25) * 1.5)}s remaining
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+                  </CardContent>
+                </Card>
+              )}
           </div>
 
           {/* Right Panel - Preview */}
@@ -311,32 +291,20 @@ export default function ApplyPage() {
                     <ImageIcon className="size-5" />
                     Application Preview
                   </CardTitle>
-                  {modelImage && patternImage && (
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        <Eye className="size-4" />
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <Maximize2 className="size-4" />
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <RotateCcw className="size-4" />
-                      </Button>
-                      <Button size="sm" className="gap-2">
-                        <Download className="size-4" />
-                        Export
-                      </Button>
-                    </div>
+                  {modelImage && patternImage && resultImages.length > 0 && (
+                    <Button variant="outline" size="sm" className="gap-2" onClick={handleDownload}>
+                      <Download className="size-4" />
+                      Download
+                    </Button>
                   )}
                 </div>
               </CardHeader>
               <CardContent className="flex-1">
                 {modelImage && patternImage ? (
-                  <Tabs defaultValue="preview" className="w-full">
-                    <TabsList className="grid w-full grid-cols-4">
+                  <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                    <TabsList className="grid w-full grid-cols-3">
                       <TabsTrigger value="model">Model</TabsTrigger>
                       <TabsTrigger value="pattern">Pattern</TabsTrigger>
-                      <TabsTrigger value="preview">Preview</TabsTrigger>
                       <TabsTrigger value="result">Result</TabsTrigger>
                     </TabsList>
 
@@ -354,39 +322,33 @@ export default function ApplyPage() {
                           fill
                           className="object-cover"
                         />
-                        <div className="absolute top-2 right-2 bg-black/50 text-white px-2 py-1 rounded text-xs">
-                          Scale: {patternScale[0]}% | Opacity: {patternOpacity[0]}%
-                        </div>
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent value="preview" className="mt-6">
-                      <div className="relative aspect-square max-w-md mx-auto rounded-lg overflow-hidden border border-border bg-muted/20">
-                        {isProcessing ? (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="text-center space-y-4">
-                              <div className="size-12 border-2 border-secondary border-t-transparent rounded-full animate-spin mx-auto" />
-                              <p className="text-sm text-muted-foreground">Generating preview...</p>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="text-center space-y-2">
-                              <Palette className="size-8 text-muted-foreground mx-auto" />
-                              <p className="text-sm text-muted-foreground">Live preview will appear here</p>
-                            </div>
-                          </div>
-                        )}
                       </div>
                     </TabsContent>
 
                     <TabsContent value="result" className="mt-6">
-                      <div className="relative aspect-square max-w-md mx-auto rounded-lg overflow-hidden border border-border bg-muted/20 flex items-center justify-center">
-                        <div className="text-center space-y-2">
-                          <AlertCircle className="size-8 text-muted-foreground mx-auto" />
-                          <p className="text-sm text-muted-foreground">Final result will appear here</p>
+                      {isProcessing ? (
+                        <div className="relative aspect-square max-w-md mx-auto rounded-lg overflow-hidden border border-border bg-muted/20 flex items-center justify-center">
+                          <div className="text-center space-y-4">
+                            <div className="size-12 border-2 border-secondary border-t-transparent rounded-full animate-spin mx-auto" />
+                            <p className="text-sm text-muted-foreground">Generating result...</p>
+                          </div>
                         </div>
-                      </div>
+                      ) : resultImages.length > 0 ? (
+                        <div className="grid gap-4 md:grid-cols-2">
+                          {resultImages.map((url, index) => (
+                            <div key={index} className="relative aspect-square rounded-lg overflow-hidden border border-border bg-muted/20">
+                              <img src={url} alt={`Result ${index + 1}`} className="absolute inset-0 h-full w-full object-cover" />
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="relative aspect-square max-w-md mx-auto rounded-lg overflow-hidden border border-border bg-muted/20 flex items-center justify-center">
+                          <div className="text-center space-y-2">
+                            <AlertCircle className="size-8 text-muted-foreground mx-auto" />
+                            <p className="text-sm text-muted-foreground">Final result will appear here</p>
+                          </div>
+                        </div>
+                      )}
                     </TabsContent>
                   </Tabs>
                 ) : (
