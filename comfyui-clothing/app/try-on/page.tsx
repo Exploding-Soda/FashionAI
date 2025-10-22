@@ -40,6 +40,8 @@ export default function TryOnPage() {
   const [activeTab, setActiveTab] = useState("model")
   const [resultImages, setResultImages] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [modalImage, setModalImage] = useState<string | null>(null)
   const modelInputRef = useRef<HTMLInputElement>(null)
   const garmentInputRef = useRef<HTMLInputElement>(null)
 
@@ -130,7 +132,13 @@ export default function TryOnPage() {
   }
 
   const handleViewResult = (url: string) => {
-    window.open(url, "_blank", "noopener,noreferrer")
+    setModalImage(url)
+    setIsModalOpen(true)
+  }
+
+  const closeModal = () => {
+    setIsModalOpen(false)
+    setModalImage(null)
   }
 
   const handleDownloadResult = (url: string) => {
@@ -146,6 +154,7 @@ export default function TryOnPage() {
   }
 
   return (
+    <>
     <div className="min-h-screen bg-background">
       {/* Header */}
       <CollapsibleHeader
@@ -341,7 +350,16 @@ export default function TryOnPage() {
                           {resultImages.map((url, index) => (
                             <div
                               key={`${url}-${index}`}
-                              className="relative aspect-[3/4] rounded-lg overflow-hidden border border-border bg-muted/20"
+                              className="relative aspect-[3/4] rounded-lg overflow-hidden border border-border bg-muted/20 cursor-zoom-in"
+                              onClick={() => handleViewResult(url)}
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter" || event.key === " ") {
+                                  event.preventDefault()
+                                  handleViewResult(url)
+                                }
+                              }}
                             >
                               <img
                                 src={url}
@@ -405,7 +423,18 @@ export default function TryOnPage() {
                 >
                   <Card className="border-border/50 hover:border-chart-4/50 transition-colors">
                     <CardContent className="p-4 space-y-3">
-                      <div className="relative aspect-[3/4] rounded-lg overflow-hidden border border-border bg-muted/20">
+                      <div
+                        className="relative aspect-[3/4] rounded-lg overflow-hidden border border-border bg-muted/20 cursor-zoom-in"
+                        onClick={() => handleViewResult(url)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault()
+                            handleViewResult(url)
+                          }
+                        }}
+                      >
                         <img src={url} alt={`Try-on result ${index + 1}`} className="absolute inset-0 h-full w-full object-cover" />
                       </div>
                       <div className="flex items-center justify-between">
@@ -444,5 +473,31 @@ export default function TryOnPage() {
         </div>
       </div>
     </div>
+
+    {isModalOpen && modalImage && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+        onClick={closeModal}
+        role="presentation"
+      >
+        <div className="relative flex max-h-[90vh] max-w-[90vw] items-center justify-center">
+          <img
+            src={modalImage}
+            alt="Enlarged try-on result"
+            className="h-auto w-auto max-h-[90vh] max-w-[90vw] object-contain"
+            onClick={(event) => event.stopPropagation()}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            className="absolute top-4 right-4 bg-black/50 text-white border-white/20 hover:bg-black/70"
+            onClick={closeModal}
+          >
+            Close
+          </Button>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
