@@ -332,8 +332,7 @@ export default function RedesignPage() {
 ${prompts[0]}
 ${prompts[1]}
 ${prompts[2]}
-${prompts[3]}
-  `
+${prompts[3]}`
   }
 
   // 合并原图和画板内容
