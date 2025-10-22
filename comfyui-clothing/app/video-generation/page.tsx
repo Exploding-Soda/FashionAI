@@ -103,8 +103,13 @@ export default function VideoGenerationPage() {
 
       setTaskId(response.taskId)
       setTenantTaskId(response.tenantTaskId ?? null)
+      const progressAfterTaskCreation = 25
+      const progressCeiling = 75
+      const pollingIntervalMs = 3000
+      const estimatedProcessingMs = 4 * 60 * 1000 // ~4 minutes
+
       setProcessingStep("Waiting for video generation to finish...")
-      setProgress(25)
+      setProgress(progressAfterTaskCreation)
 
       const maxAttempts = 120
       let attempt = 0
@@ -134,8 +139,17 @@ export default function VideoGenerationPage() {
 
         attempt += 1
         setProcessingStep(status.message || "Video generation in progress...")
-        setProgress((prev) => Math.min(prev + 5, 75))
-        await new Promise((resolve) => setTimeout(resolve, 3000))
+        setProgress((prev) => {
+          const elapsedMs = attempt * pollingIntervalMs
+          const ratio = Math.min(elapsedMs / estimatedProcessingMs, 1)
+          const simulatedProgress =
+            progressAfterTaskCreation +
+            Math.round(
+              (progressCeiling - progressAfterTaskCreation) * ratio
+            )
+          return Math.max(prev, Math.min(simulatedProgress, progressCeiling))
+        })
+        await new Promise((resolve) => setTimeout(resolve, pollingIntervalMs))
       }
 
       if (!completed) {
