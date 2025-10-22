@@ -1171,5 +1171,31 @@
       }
     ],
     "error_message": null
+  },
+  {
+    "id": 48,
+    "tenant_task_id": "tenant_38efb282cc484984",
+    "user_id": "eason",
+    "runninghub_task_id": "1980875184343330817",
+    "task_type": "video_generation",
+    "status": "PENDING",
+    "created_at": "2025-10-22T05:53:41.931053",
+    "completed_at": null,
+    "result_data": null,
+    "storage_paths": null,
+    "error_message": null
+  },
+  {
+    "id": 49,
+    "tenant_task_id": "tenant_ac6a312c72624fb9",
+    "user_id": "eason",
+    "runninghub_task_id": "1980875489256648707",
+    "task_type": "video_generation",
+    "status": "PENDING",
+    "created_at": "2025-10-22T05:54:54.560917",
+    "completed_at": null,
+    "result_data": null,
+    "storage_paths": null,
+    "error_message": null
   }
 ]

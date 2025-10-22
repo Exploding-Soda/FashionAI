@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { motion } from "framer-motion"
 import {
   Download,
@@ -26,24 +26,34 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Slider } from "@/components/ui/slider"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
-import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { CollapsibleHeader } from "@/components/collapsible-header"
 import Image from "next/image"
+import { videoGenerationApiClient } from "@/lib/video-generation-api-client"
 
 export default function VideoGenerationPage() {
   const [inputImage, setInputImage] = useState<string | null>(null)
+  const [inputFile, setInputFile] = useState<File | null>(null)
   const [prompt, setPrompt] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
   const [processingStep, setProcessingStep] = useState("")
-  const [videoLength, setVideoLength] = useState(5) // seconds
-  const [fps, setFps] = useState(24)
-  const [loopVideo, setLoopVideo] = useState(true)
+  const [loopVideo] = useState(true)
+  const [taskId, setTaskId] = useState<string | null>(null)
+  const [tenantTaskId, setTenantTaskId] = useState<string | null>(null)
+  const [generatedOutput, setGeneratedOutput] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const isMountedRef = useRef(true)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -53,33 +63,126 @@ export default function VideoGenerationPage() {
         setInputImage(e.target?.result as string)
       }
       reader.readAsDataURL(file)
+      setInputFile(file)
+      setGeneratedOutput(null)
+      setTaskId(null)
+      setTenantTaskId(null)
+      setError(null)
+      setProgress(0)
+      setProcessingStep("")
     }
   }
 
   const handleVideoGeneration = async () => {
-    if (!inputImage || !prompt.trim()) return
-
-    setIsProcessing(true)
-    setProgress(0)
-
-    const steps = [
-      "Analyzing input image...",
-      "Processing prompt...",
-      "Generating video frames...",
-      "Creating video sequence...",
-      "Finalizing output...",
-    ]
-
-    for (let i = 0; i < steps.length; i++) {
-      setProcessingStep(steps[i])
-      setProgress(((i + 1) / steps.length) * 100)
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+    if (!inputFile) {
+      setError("Please upload an input image before generating a video.")
+      return
     }
 
-    setIsProcessing(false)
-    setProcessingStep("")
+    const trimmedPrompt = prompt.trim()
+    if (!trimmedPrompt) {
+      setError("Please provide a prompt for the video generation.")
+      return
+    }
+
+    setIsProcessing(true)
+    setError(null)
+    setGeneratedOutput(null)
+    setTaskId(null)
+    setTenantTaskId(null)
+    setProgress(5)
+    setProcessingStep("Uploading image and creating workflow task...")
+
+    try {
+      const response = await videoGenerationApiClient.submitVideoGeneration(
+        inputFile,
+        trimmedPrompt
+      )
+
+      if (!isMountedRef.current) return
+
+      setTaskId(response.taskId)
+      setTenantTaskId(response.tenantTaskId ?? null)
+      setProcessingStep("Waiting for video generation to finish...")
+      setProgress(25)
+
+      const maxAttempts = 40
+      let attempt = 0
+      let completed = false
+
+      while (attempt < maxAttempts) {
+        if (!isMountedRef.current) {
+          return
+        }
+
+        const status = await videoGenerationApiClient.getTaskStatus(
+          response.taskId
+        )
+
+        if (!isMountedRef.current) {
+          return
+        }
+
+        if (status.status === "SUCCESS") {
+          completed = true
+          break
+        }
+
+        if (status.status === "FAILED") {
+          throw new Error(status.message || "Video generation failed.")
+        }
+
+        attempt += 1
+        setProcessingStep(
+          status.message ||
+            `Video generation in progress... (poll ${attempt + 1})`
+        )
+        setProgress((prev) => Math.min(prev + 5, 75))
+        await new Promise((resolve) => setTimeout(resolve, 3000))
+      }
+
+      if (!completed) {
+        throw new Error("Video generation timed out. Please try again later.")
+      }
+
+      setProcessingStep("Retrieving generated video...")
+      setProgress(90)
+
+      const { outputs } = await videoGenerationApiClient.completeTask(
+        response.taskId
+      )
+
+      if (!isMountedRef.current) {
+        return
+      }
+
+      const firstOutput = outputs?.[0]
+      if (!firstOutput) {
+        throw new Error("No video output returned. Please retry the request.")
+      }
+
+      setGeneratedOutput(firstOutput)
+      setProcessingStep("Video generation complete.")
+      setProgress(100)
+    } catch (err) {
+      if (!isMountedRef.current) return
+      setProcessingStep("")
+      setGeneratedOutput(null)
+      setProgress(0)
+      setError(
+        err instanceof Error ? err.message : "Video generation failed. Please try again."
+      )
+    } finally {
+      if (isMountedRef.current) {
+        setIsProcessing(false)
+      }
+    }
   }
 
+  const isGeneratedVideo =
+    !!generatedOutput &&
+    (/\.(mp4|webm|mov|gif)(\?|$)/i.test(generatedOutput) ||
+      generatedOutput.startsWith("data:video"))
 
   return (
     <div className="min-h-screen bg-background">
@@ -169,38 +272,11 @@ export default function VideoGenerationPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Video Length (seconds)</Label>
-                    <Slider 
-                      value={[videoLength]} 
-                      onValueChange={(value) => setVideoLength(value[0])}
-                      max={30} 
-                      min={2}
-                      step={1} 
-                      className="w-full" 
-                    />
-                    <p className="text-xs text-muted-foreground">{videoLength} seconds</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Frame Rate (FPS)</Label>
-                    <Slider 
-                      value={[fps]} 
-                      onValueChange={(value) => setFps(value[0])}
-                      max={60} 
-                      min={12}
-                      step={6} 
-                      className="w-full" 
-                    />
-                    <p className="text-xs text-muted-foreground">{fps} FPS</p>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">Loop Video</Label>
-                    <Switch checked={loopVideo} onCheckedChange={setLoopVideo} />
-                  </div>
-
-                  <Button onClick={handleVideoGeneration} disabled={isProcessing} className="w-full gap-2">
+                  <Button
+                    onClick={handleVideoGeneration}
+                    disabled={isProcessing || !inputFile || !prompt.trim()}
+                    className="w-full gap-2"
+                  >
                     {isProcessing ? (
                       <>
                         <Clock className="size-4 animate-spin" />
@@ -213,23 +289,55 @@ export default function VideoGenerationPage() {
                       </>
                     )}
                   </Button>
+                  {error && (
+                    <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                      <AlertCircle className="mt-0.5 size-4" />
+                      <span>{error}</span>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}
 
             {/* Processing Status */}
-            {isProcessing && (
+            {(isProcessing || taskId || tenantTaskId) && (
               <Card className="border-chart-4/50 bg-chart-4/5">
                 <CardContent className="pt-6">
                   <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <div className="size-2 rounded-full bg-chart-4 animate-pulse" />
-                      <span className="text-sm font-medium">{processingStep}</span>
-                    </div>
-                    <Progress value={progress} className="w-full" />
-                    <p className="text-xs text-muted-foreground">
-                      Video generation may take longer (~{Math.ceil(((100 - progress) / 25) * 3)}s remaining)
-                    </p>
+                    {processingStep && (
+                      <div className="flex items-center gap-2">
+                        <div className={`size-2 rounded-full ${isProcessing ? "bg-chart-4 animate-pulse" : "bg-chart-4/60"}`} />
+                        <span className="text-sm font-medium">{processingStep}</span>
+                      </div>
+                    )}
+                    {isProcessing && (
+                      <>
+                        <Progress value={progress} className="w-full" />
+                        <p className="text-xs text-muted-foreground">
+                          Video generation may take a little while; keep this tab open while we work on it.
+                        </p>
+                      </>
+                    )}
+                    {taskId && (
+                      <p className="text-xs text-muted-foreground">
+                        Task ID: <span className="font-mono text-foreground/80">{taskId}</span>
+                      </p>
+                    )}
+                    {tenantTaskId && (
+                      <p className="text-xs text-muted-foreground">
+                        Tenant Task ID: <span className="font-mono text-foreground/80">{tenantTaskId}</span>
+                      </p>
+                    )}
+                    {!isProcessing && !error && generatedOutput && (
+                      <p className="text-xs text-chart-4">
+                        Your video is ready! Scroll right to preview and download the result.
+                      </p>
+                    )}
+                    {!isProcessing && error && (
+                      <p className="text-xs text-destructive">
+                        {error}
+                      </p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -240,34 +348,17 @@ export default function VideoGenerationPage() {
           <div className="lg:col-span-2">
             <Card className="border-border/50 h-full">
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <Video className="size-5" />
-                    Video Preview
-                  </CardTitle>
-                  {inputImage && prompt.trim() && (
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        <Eye className="size-4" />
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <RotateCcw className="size-4" />
-                      </Button>
-                      <Button size="sm" className="gap-2">
-                        <Download className="size-4" />
-                        Export
-                      </Button>
-                    </div>
-                  )}
-                </div>
+                <CardTitle className="flex items-center gap-2">
+                  <Video className="size-5" />
+                  Video Preview
+                </CardTitle>
               </CardHeader>
               <CardContent className="flex-1">
                 {inputImage && prompt.trim() ? (
                   <Tabs defaultValue="result" className="w-full">
-                    <TabsList className="grid w-full grid-cols-3">
+                    <TabsList className="grid w-full grid-cols-2">
                       <TabsTrigger value="input">Input</TabsTrigger>
                       <TabsTrigger value="result">Video</TabsTrigger>
-                      <TabsTrigger value="settings">Settings</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="input" className="mt-6">
@@ -298,6 +389,23 @@ export default function VideoGenerationPage() {
                               </p>
                             </div>
                           </div>
+                        ) : generatedOutput ? (
+                          isGeneratedVideo ? (
+                            <video
+                              key={generatedOutput}
+                              src={generatedOutput}
+                              controls
+                              loop={loopVideo}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <img
+                              key={generatedOutput}
+                              src={generatedOutput}
+                              alt="Generated result"
+                              className="h-full w-full object-cover"
+                            />
+                          )
                         ) : (
                           <div className="absolute inset-0 flex items-center justify-center">
                             <div className="text-center space-y-2">
@@ -311,26 +419,6 @@ export default function VideoGenerationPage() {
                       </div>
                     </TabsContent>
 
-                    <TabsContent value="settings" className="mt-6">
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="text-center p-4 rounded-lg bg-muted/50">
-                            <p className="text-sm font-medium">Video Length</p>
-                            <p className="text-2xl font-bold text-primary">{videoLength}s</p>
-                          </div>
-                          <div className="text-center p-4 rounded-lg bg-muted/50">
-                            <p className="text-sm font-medium">Frame Rate</p>
-                            <p className="text-2xl font-bold text-primary">{fps} FPS</p>
-                          </div>
-                        </div>
-                        <div className="text-center p-4 rounded-lg bg-muted/50">
-                          <p className="text-sm font-medium">Loop Video</p>
-                          <p className="text-sm text-muted-foreground">
-                            {loopVideo ? "Enabled" : "Disabled"}
-                          </p>
-                        </div>
-                      </div>
-                    </TabsContent>
                   </Tabs>
                 ) : (
                   <div className="flex items-center justify-center h-96 border-2 border-dashed border-border rounded-lg">
