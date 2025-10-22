@@ -91,16 +91,16 @@ class CompleteVideoGenerationWorkflow(Workflow):
 
         return [
             {
-                "nodeId": "1",
-                "fieldName": "prompt",
-                "fieldValue": prompt,
-                "description": "prompt",
-            },
-            {
-                "nodeId": "2",
+                "nodeId": "87",
                 "fieldName": "image",
                 "fieldValue": image_name,
                 "description": "image",
+            },
+            {
+                "nodeId": "86",
+                "fieldName": "prompt",
+                "fieldValue": prompt,
+                "description": "prompt",
             },
         ]
 
