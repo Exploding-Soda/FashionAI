@@ -40,7 +40,6 @@ export default function TryOnPage() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
   const [processingStep, setProcessingStep] = useState("")
-  const [selectedModel, setSelectedModel] = useState<number>(0)
   const modelInputRef = useRef<HTMLInputElement>(null)
   const garmentInputRef = useRef<HTMLInputElement>(null)
   const accessoryInputRef = useRef<HTMLInputElement>(null)
@@ -113,20 +112,6 @@ export default function TryOnPage() {
     setProcessingStep("")
   }
 
-  const presetModels = [
-    { id: 1, name: "Model A", type: "Female", pose: "Front", preview: "/placeholder.svg?height=200&width=150" },
-    { id: 2, name: "Model B", type: "Male", pose: "Side", preview: "/placeholder.svg?height=200&width=150" },
-    { id: 3, name: "Model C", type: "Female", pose: "Back", preview: "/placeholder.svg?height=200&width=150" },
-    { id: 4, name: "Model D", type: "Male", pose: "Front", preview: "/placeholder.svg?height=200&width=150" },
-  ]
-
-  const presetGarments = [
-    { id: 1, name: "T-Shirt", category: "Tops", preview: "/placeholder.svg?height=150&width=150" },
-    { id: 2, name: "Dress", category: "Dresses", preview: "/placeholder.svg?height=150&width=150" },
-    { id: 3, name: "Jeans", category: "Bottoms", preview: "/placeholder.svg?height=150&width=150" },
-    { id: 4, name: "Jacket", category: "Outerwear", preview: "/placeholder.svg?height=150&width=150" },
-  ]
-
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -153,69 +138,31 @@ export default function TryOnPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Tabs defaultValue="upload" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="upload">Upload</TabsTrigger>
-                    <TabsTrigger value="preset">Preset</TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="upload" className="space-y-4">
-                    <div
-                      className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
-                      onClick={() => modelInputRef.current?.click()}
-                    >
-                      {modelImages.length > 0 ? (
-                        <div className="space-y-2">
-                          <CheckCircle className="size-6 text-primary mx-auto" />
-                          <p className="text-sm font-medium">{modelImages.length} model(s) uploaded</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <User className="size-6 text-muted-foreground mx-auto" />
-                          <p className="text-sm font-medium">Upload model images</p>
-                          <p className="text-xs text-muted-foreground">Support multiple poses</p>
-                        </div>
-                      )}
+                <div
+                  className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                  onClick={() => modelInputRef.current?.click()}
+                >
+                  {modelImages.length > 0 ? (
+                    <div className="space-y-2">
+                      <CheckCircle className="size-6 text-primary mx-auto" />
+                      <p className="text-sm font-medium">{modelImages.length} model(s) uploaded</p>
                     </div>
-                    <input
-                      ref={modelInputRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={handleModelUpload}
-                      className="hidden"
-                    />
-                  </TabsContent>
-
-                  <TabsContent value="preset" className="space-y-4">
-                    <div className="grid grid-cols-2 gap-2">
-                      {presetModels.map((model, i) => (
-                        <div
-                          key={model.id}
-                          className={`relative aspect-[3/4] rounded-lg overflow-hidden border cursor-pointer transition-colors ${
-                            selectedModel === i
-                              ? "border-primary ring-2 ring-primary/20"
-                              : "border-border hover:border-border/60"
-                          }`}
-                          onClick={() => setSelectedModel(i)}
-                        >
-                          <Image
-                            src={model.preview || "/placeholder.svg"}
-                            alt={model.name}
-                            fill
-                            className="object-cover"
-                          />
-                          <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white p-2">
-                            <p className="text-xs font-medium">{model.name}</p>
-                            <p className="text-xs opacity-75">
-                              {model.type} • {model.pose}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
+                  ) : (
+                    <div className="space-y-2">
+                      <User className="size-6 text-muted-foreground mx-auto" />
+                      <p className="text-sm font-medium">Upload model images</p>
+                      <p className="text-xs text-muted-foreground">Support multiple poses</p>
                     </div>
-                  </TabsContent>
-                </Tabs>
+                  )}
+                </div>
+                <input
+                  ref={modelInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleModelUpload}
+                  className="hidden"
+                />
               </CardContent>
             </Card>
 
@@ -228,66 +175,34 @@ export default function TryOnPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Tabs defaultValue="upload" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="upload">Upload</TabsTrigger>
-                    <TabsTrigger value="preset">Preset</TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="upload" className="space-y-4">
-                    <div
-                      className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-chart-4/50 transition-colors"
-                      onClick={() => garmentInputRef.current?.click()}
-                    >
-                      {garmentImage ? (
-                        <div className="space-y-2">
-                          <CheckCircle className="size-6 text-chart-4 mx-auto" />
-                          <p className="text-sm font-medium">Garment uploaded</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <Shirt className="size-6 text-muted-foreground mx-auto" />
-                          <p className="text-sm font-medium">Upload garment</p>
-                        </div>
-                      )}
+                <div
+                  className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-chart-4/50 transition-colors"
+                  onClick={() => garmentInputRef.current?.click()}
+                >
+                  {garmentImage ? (
+                    <div className="space-y-2">
+                      <CheckCircle className="size-6 text-chart-4 mx-auto" />
+                      <p className="text-sm font-medium">Garment uploaded</p>
                     </div>
-                    <input
-                      ref={garmentInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleGarmentUpload}
-                      className="hidden"
-                    />
-                  </TabsContent>
-
-                  <TabsContent value="preset" className="space-y-4">
-                    <div className="grid grid-cols-2 gap-2">
-                      {presetGarments.map((garment) => (
-                        <div
-                          key={garment.id}
-                          className="relative aspect-square rounded-lg overflow-hidden border border-border cursor-pointer hover:border-chart-4/50 transition-colors"
-                          onClick={() => setGarmentImage(garment.preview)}
-                        >
-                          <Image
-                            src={garment.preview || "/placeholder.svg"}
-                            alt={garment.name}
-                            fill
-                            className="object-cover"
-                          />
-                          <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white p-2">
-                            <p className="text-xs font-medium">{garment.name}</p>
-                            <p className="text-xs opacity-75">{garment.category}</p>
-                          </div>
-                        </div>
-                      ))}
+                  ) : (
+                    <div className="space-y-2">
+                      <Shirt className="size-6 text-muted-foreground mx-auto" />
+                      <p className="text-sm font-medium">Upload garment</p>
                     </div>
-                  </TabsContent>
-                </Tabs>
+                  )}
+                </div>
+                <input
+                  ref={garmentInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleGarmentUpload}
+                  className="hidden"
+                />
               </CardContent>
             </Card>
 
             {/* Try-On Settings */}
-            {(modelImages.length > 0 || selectedModel !== null) && garmentImage && (
+            {modelImages.length > 0 && garmentImage && (
               <Card className="border-border/50">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -361,7 +276,7 @@ export default function TryOnPage() {
                     <ImageIcon className="size-5" />
                     Try-On Preview
                   </CardTitle>
-                  {(modelImages.length > 0 || selectedModel !== null) && garmentImage && (
+                  {modelImages.length > 0 && garmentImage && (
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm">
                         <Shuffle className="size-4" />
@@ -381,7 +296,7 @@ export default function TryOnPage() {
                 </div>
               </CardHeader>
               <CardContent className="flex-1">
-                {(modelImages.length > 0 || selectedModel !== null) && garmentImage ? (
+                {modelImages.length > 0 && garmentImage ? (
                   <Tabs defaultValue="result" className="w-full">
                     <TabsList className="grid w-full grid-cols-4">
                       <TabsTrigger value="model">Model</TabsTrigger>
@@ -393,7 +308,7 @@ export default function TryOnPage() {
                     <TabsContent value="model" className="mt-6">
                       <div className="relative aspect-[3/4] max-w-sm mx-auto rounded-lg overflow-hidden border border-border">
                         <Image
-                          src={modelImages[0] || presetModels[selectedModel]?.preview || "/placeholder.svg"}
+                          src={modelImages[0] || "/placeholder.svg"}
                           alt="Selected model"
                           fill
                           className="object-cover"
@@ -442,7 +357,7 @@ export default function TryOnPage() {
                           <p className="text-sm font-medium text-center">Before</p>
                           <div className="relative aspect-[3/4] rounded-lg overflow-hidden border border-border">
                             <Image
-                              src={modelImages[0] || presetModels[selectedModel]?.preview || "/placeholder.svg"}
+                              src={modelImages[0] || "/placeholder.svg"}
                               alt="Before"
                               fill
                               className="object-cover"
@@ -478,7 +393,7 @@ export default function TryOnPage() {
                       <div>
                         <p className="text-lg font-medium">Select model and garment to start</p>
                         <p className="text-sm text-muted-foreground">
-                          Upload or choose from presets to begin virtual try-on
+                          Upload a model and garment to begin virtual try-on
                         </p>
                       </div>
                     </div>

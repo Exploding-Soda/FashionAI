@@ -26,7 +26,7 @@ import { CollapsibleHeader } from "@/components/collapsible-header"
 import Image from "next/image"
 import { redesignApiClient, type TaskStatusResponse } from "@/lib/redesign-api-client"
 
-const APPLICATION_PROMPT = "将图片2的印花完整迁移到图片1的衣服上"
+const APPLICATION_PROMPT = "将图片2中的印花款式迁移到图片1的衣服上"
 
 export default function ApplyPage() {
   const [modelImage, setModelImage] = useState<string | null>(null)
