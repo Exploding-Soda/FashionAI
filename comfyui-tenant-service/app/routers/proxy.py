@@ -1069,6 +1069,15 @@ async def complete_task_with_storage(
             outputs_data = outputs_response.json()
         
         logger.info(f"获取到任务输出: {outputs_data}")
+        outputs = outputs_data.get("outputs")
+        if outputs:
+            logger.info(f"任务输出数量: {len(outputs)}")
+            for idx, item in enumerate(outputs):
+                logger.info(
+                    f"输出[{idx}]: 类型={type(item).__name__}, 内容={item}"
+                )
+        else:
+            logger.warning("任务输出为空或缺少 'outputs' 字段")
         
         # 2. 下载并存储图片
         if "outputs" in outputs_data and outputs_data["outputs"]:
@@ -1086,7 +1095,7 @@ async def complete_task_with_storage(
                         "thumbnail": output.get("thumbnailPath")
                     })
             
-            logger.info(f"图片存储完成，路径: {storage_entries}")
+            logger.info(f"文件存储完成，路径: {storage_entries}")
             
             # 3. 更新任务记录
             # 首先找到对应的tenant任务记录
@@ -1116,7 +1125,7 @@ async def complete_task_with_storage(
             result = {
                 "taskId": task_id,
                 "status": "completed",
-                "message": "图片已下载并存储到本地",
+                "message": "文件已下载并存储到本地",
                 "storagePaths": storage_entries,
                 "outputCount": len(stored_outputs)
             }

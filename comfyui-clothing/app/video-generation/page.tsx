@@ -106,7 +106,7 @@ export default function VideoGenerationPage() {
       setProcessingStep("Waiting for video generation to finish...")
       setProgress(25)
 
-      const maxAttempts = 40
+      const maxAttempts = 120
       let attempt = 0
       let completed = false
 
@@ -133,10 +133,7 @@ export default function VideoGenerationPage() {
         }
 
         attempt += 1
-        setProcessingStep(
-          status.message ||
-            `Video generation in progress... (poll ${attempt + 1})`
-        )
+        setProcessingStep(status.message || "Video generation in progress...")
         setProgress((prev) => Math.min(prev + 5, 75))
         await new Promise((resolve) => setTimeout(resolve, 3000))
       }
@@ -317,16 +314,6 @@ export default function VideoGenerationPage() {
                           Video generation may take a little while; keep this tab open while we work on it.
                         </p>
                       </>
-                    )}
-                    {taskId && (
-                      <p className="text-xs text-muted-foreground">
-                        Task ID: <span className="font-mono text-foreground/80">{taskId}</span>
-                      </p>
-                    )}
-                    {tenantTaskId && (
-                      <p className="text-xs text-muted-foreground">
-                        Tenant Task ID: <span className="font-mono text-foreground/80">{tenantTaskId}</span>
-                      </p>
                     )}
                     {!isProcessing && !error && generatedOutput && (
                       <p className="text-xs text-chart-4">

@@ -8,6 +8,7 @@ import asyncio
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from pathlib import Path
+from urllib.parse import urlparse
 from ..services.logger import get_image_storage_logger
 
 try:
@@ -34,7 +35,7 @@ class ImageStorageService:
         outputs: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
-        下载并存储图片到本地
+        下载并存储输出文件到本地（支持图片与视频）
         
         Args:
             user_id: 用户ID
@@ -47,17 +48,30 @@ class ImageStorageService:
         user_output_dir.mkdir(parents=True, exist_ok=True)
         thumbnail_dir = user_output_dir / self.THUMBNAIL_DIR_NAME
         thumbnail_dir.mkdir(parents=True, exist_ok=True)
+        video_dir = user_output_dir / "video"
+        video_dir.mkdir(parents=True, exist_ok=True)
+
+        image_types = {"png", "jpg", "jpeg", "gif", "webp"}
+        video_types = {"mp4", "mov", "webm", "avi", "mkv", "mpeg", "mpg"}
         
         stored_outputs = []
         
         for output in outputs:
             try:
-                if "fileUrl" in output and output.get("fileType") in ["png", "jpg", "jpeg", "gif", "webp"]:
+                file_url = output.get("fileUrl")
+                file_type = (output.get("fileType") or "").lower()
+
+                # fallback to extension if fileType missing
+                if not file_type and file_url:
+                    parsed = urlparse(file_url)
+                    file_type = Path(parsed.path).suffix.lstrip(".").lower()
+
+                if file_url and file_type in image_types:
                     # 下载图片
                     local_path = await self._download_image(
-                        output["fileUrl"], 
+                        file_url,
                         user_output_dir, 
-                        output.get("fileType", "png")
+                        file_type or "png"
                     )
                     thumbnail_path = None
                     
@@ -77,8 +91,29 @@ class ImageStorageService:
                         stored_outputs.append(stored_output)
                         logger.info(f"图片存储成功: {local_path}")
                     else:
-                        logger.error(f"图片下载失败: {output['fileUrl']}")
+                        logger.error(f"图片下载失败: {file_url}")
                         stored_outputs.append(output)  # 保留原始输出
+                elif file_url and file_type in video_types:
+                    local_path = await self._download_binary(
+                        file_url,
+                        video_dir,
+                        file_type or "mp4"
+                    )
+
+                    if local_path:
+                        stored_output = {
+                            "fileUrl": file_url,
+                            "localPath": str(local_path),
+                            "fileType": file_type or "mp4",
+                            "taskCostTime": output.get("taskCostTime", ""),
+                            "nodeId": output.get("nodeId", ""),
+                            "storedAt": datetime.now().isoformat()
+                        }
+                        stored_outputs.append(stored_output)
+                        logger.info(f"视频存储成功: {local_path}")
+                    else:
+                        logger.error(f"视频下载失败: {file_url}")
+                        stored_outputs.append(output)
                 else:
                     # 非图片文件，直接保留
                     stored_outputs.append(output)
@@ -214,6 +249,35 @@ class ImageStorageService:
         # 将本地路径转换为相对路径
         relative_path = Path(local_path).relative_to(self.base_storage_path)
         return f"{base_url}/static/images/{relative_path}"
+
+    async def _download_binary(
+        self,
+        file_url: str,
+        output_dir: Path,
+        file_type: str = "bin"
+    ) -> Optional[Path]:
+        """
+        下载任意二进制文件（如视频）
+        """
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{timestamp}.{file_type}"
+            local_path = output_dir / filename
+
+            logger.info(f"开始下载文件: {file_url}")
+
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.get(file_url)
+                response.raise_for_status()
+
+                with open(local_path, "wb") as f:
+                    f.write(response.content)
+
+            logger.info(f"文件下载完成: {local_path}")
+            return local_path
+        except Exception as e:
+            logger.error(f"下载文件失败 {file_url}: {str(e)}")
+            return None
 
 # 全局实例
 image_storage_service = ImageStorageService()
