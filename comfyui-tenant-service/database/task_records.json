@@ -1109,5 +1109,36 @@
       }
     ],
     "error_message": null
+  },
+  {
+    "id": 46,
+    "tenant_task_id": "tenant_487ea343bcec4e86",
+    "user_id": "eason",
+    "runninghub_task_id": "1980829856298655746",
+    "task_type": "targeted_redesign",
+    "status": "SUCCESS",
+    "created_at": "2025-10-22T02:53:34.815819",
+    "completed_at": "2025-10-22T02:54:46.037067",
+    "result_data": {
+      "taskId": "1980829856298655746",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_pmqqi_1761101666.png",
+          "fileType": "png",
+          "taskCostTime": "60",
+          "nodeId": "32",
+          "thirdPartyConsumeMoney": "0.000",
+          "consumeMoney": "0.067",
+          "consumeCoins": null
+        }
+      ]
+    },
+    "storage_paths": [
+      {
+        "original": "output\\eason\\20251022_105440.png",
+        "thumbnail": "output\\eason\\thumbnail\\20251022_105440.png"
+      }
+    ],
+    "error_message": null
   }
 ]

@@ -25,85 +25,124 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { CollapsibleHeader } from "@/components/collapsible-header"
 import Image from "next/image"
+import { redesignApiClient, type TaskStatusResponse } from "@/lib/redesign-api-client"
+
+const TRY_ON_PROMPT = "将图片2中的服装套到图片1的模特身上"
 
 export default function TryOnPage() {
-  const [modelImages, setModelImages] = useState<string[]>([])
+  const [modelImage, setModelImage] = useState<string | null>(null)
   const [garmentImage, setGarmentImage] = useState<string | null>(null)
-  const [accessoryImages, setAccessoryImages] = useState<string[]>([])
-  const [backgroundImage, setBackgroundImage] = useState<string | null>(null)
+  const [modelFile, setModelFile] = useState<File | null>(null)
+  const [garmentFile, setGarmentFile] = useState<File | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
   const [processingStep, setProcessingStep] = useState("")
+  const [activeTab, setActiveTab] = useState("model")
+  const [resultImages, setResultImages] = useState<string[]>([])
+  const [error, setError] = useState<string | null>(null)
   const modelInputRef = useRef<HTMLInputElement>(null)
   const garmentInputRef = useRef<HTMLInputElement>(null)
-  const accessoryInputRef = useRef<HTMLInputElement>(null)
-  const backgroundInputRef = useRef<HTMLInputElement>(null)
 
   const handleModelUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || [])
-    files.forEach((file) => {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        setModelImages((prev) => [...prev, e.target?.result as string])
-      }
-      reader.readAsDataURL(file)
-    })
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setModelFile(file)
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      setModelImage(e.target?.result as string)
+    }
+    reader.readAsDataURL(file)
   }
 
   const handleGarmentUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        setGarmentImage(e.target?.result as string)
-      }
-      reader.readAsDataURL(file)
+    if (!file) return
+
+    setGarmentFile(file)
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      setGarmentImage(e.target?.result as string)
     }
+    reader.readAsDataURL(file)
   }
 
-  const handleAccessoryUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || [])
-    files.forEach((file) => {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        setAccessoryImages((prev) => [...prev, e.target?.result as string])
-      }
-      reader.readAsDataURL(file)
-    })
-  }
+  const pollTaskStatus = async (id: string): Promise<TaskStatusResponse> => {
+    const maxAttempts = 60
+    const delay = 2000
 
-  const handleBackgroundUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        setBackgroundImage(e.target?.result as string)
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const status = await redesignApiClient.getTaskStatus(id)
+      if (status.status === "SUCCESS" || status.status === "FAILED") {
+        return status
       }
-      reader.readAsDataURL(file)
+      await new Promise((resolve) => setTimeout(resolve, delay))
     }
+
+    throw new Error("Try-on task polling timeout")
   }
 
   const handleTryOn = async () => {
-    if (modelImages.length === 0 || !garmentImage) return
+    if (!modelFile || !garmentFile) {
+      setError("Please upload both model and garment images before trying on.")
+      return
+    }
 
     setIsProcessing(true)
     setProgress(0)
+    setProcessingStep("Submitting try-on request...")
+    setError(null)
+    setResultImages([])
+    setActiveTab("result")
 
-    const steps = [
-      "Analyzing model structure...",
-      "Processing garment fitting...",
-      "Applying realistic shadows...",
-      "Generating final composition...",
-    ]
+    try {
+      const response = await redesignApiClient.submitRedesign({
+        prompt: TRY_ON_PROMPT,
+        image: modelFile,
+        image_2: garmentFile,
+      })
 
-    for (let i = 0; i < steps.length; i++) {
-      setProcessingStep(steps[i])
-      setProgress(((i + 1) / steps.length) * 100)
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      setProgress(30)
+      setProcessingStep("Waiting for completion...")
+
+      const finalStatus = await pollTaskStatus(response.taskId)
+      if (finalStatus.status !== "SUCCESS") {
+        throw new Error("Try-on task failed to complete successfully.")
+      }
+
+      setProgress(80)
+      setProcessingStep("Fetching results...")
+      const outputs = await redesignApiClient.completeTask(response.taskId)
+      if (!outputs.outputs || outputs.outputs.length === 0) {
+        throw new Error("No output images received.")
+      }
+
+      setResultImages(outputs.outputs)
+      setProgress(100)
+      setProcessingStep("")
+    } catch (err) {
+      console.error("Try-on error:", err)
+      setError(err instanceof Error ? err.message : "An unexpected error occurred.")
+      setProcessingStep("")
+    } finally {
+      setIsProcessing(false)
     }
+  }
 
-    setIsProcessing(false)
-    setProcessingStep("")
+  const handleViewResult = (url: string) => {
+    window.open(url, "_blank", "noopener,noreferrer")
+  }
+
+  const handleDownloadResult = (url: string) => {
+    try {
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `try-on-${Date.now()}.png`
+      link.click()
+      link.remove()
+    } catch (err) {
+      console.error("Download error:", err)
+    }
   }
 
   return (
@@ -136,16 +175,16 @@ export default function TryOnPage() {
                   className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
                   onClick={() => modelInputRef.current?.click()}
                 >
-                  {modelImages.length > 0 ? (
+                  {modelImage ? (
                     <div className="space-y-2">
                       <CheckCircle className="size-6 text-primary mx-auto" />
-                      <p className="text-sm font-medium">{modelImages.length} model(s) uploaded</p>
+                      <p className="text-sm font-medium">Model image uploaded</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
                       <User className="size-6 text-muted-foreground mx-auto" />
-                      <p className="text-sm font-medium">Upload model images</p>
-                      <p className="text-xs text-muted-foreground">Support multiple poses</p>
+                      <p className="text-sm font-medium">Upload model image</p>
+                      <p className="text-xs text-muted-foreground">Supports portrait photos</p>
                     </div>
                   )}
                 </div>
@@ -153,7 +192,6 @@ export default function TryOnPage() {
                   ref={modelInputRef}
                   type="file"
                   accept="image/*"
-                  multiple
                   onChange={handleModelUpload}
                   className="hidden"
                 />
@@ -195,16 +233,16 @@ export default function TryOnPage() {
               </CardContent>
             </Card>
 
-            {/* Try-On Settings */}
-            {modelImages.length > 0 && garmentImage && (
+            {/* Try On */}
+            {modelImage && garmentImage && (
               <Card className="border-border/50">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Settings className="size-5" />
-                    Try-On Settings
+                    Try On
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-3">
                   <Button onClick={handleTryOn} disabled={isProcessing} className="w-full gap-2">
                     {isProcessing ? (
                       <>
@@ -218,6 +256,11 @@ export default function TryOnPage() {
                       </>
                     )}
                   </Button>
+                  {error && (
+                    <p className="text-sm text-destructive text-center">
+                      {error}
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             )}
@@ -253,8 +296,8 @@ export default function TryOnPage() {
                 </div>
               </CardHeader>
               <CardContent className="flex-1">
-                {modelImages.length > 0 && garmentImage ? (
-                  <Tabs defaultValue="result" className="w-full">
+                {modelImage && garmentImage ? (
+                  <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                     <TabsList className="grid w-full grid-cols-3">
                       <TabsTrigger value="model">Model</TabsTrigger>
                       <TabsTrigger value="garment">Garment</TabsTrigger>
@@ -264,7 +307,7 @@ export default function TryOnPage() {
                     <TabsContent value="model" className="mt-6">
                       <div className="relative aspect-[3/4] max-w-sm mx-auto rounded-lg overflow-hidden border border-border">
                         <Image
-                          src={modelImages[0] || "/placeholder.svg"}
+                          src={modelImage || "/placeholder.svg"}
                           alt="Selected model"
                           fill
                           className="object-cover"
@@ -284,27 +327,40 @@ export default function TryOnPage() {
                     </TabsContent>
 
                     <TabsContent value="result" className="mt-6">
-                      <div className="relative aspect-[3/4] max-w-sm mx-auto rounded-lg overflow-hidden border border-border bg-muted/20">
-                        {isProcessing ? (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="text-center space-y-4">
-                              <div className="size-12 border-2 border-chart-4 border-t-transparent rounded-full animate-spin mx-auto" />
-                              <p className="text-sm text-muted-foreground">
-                                Creating try-on...
-                              </p>
-                            </div>
+                      {isProcessing ? (
+                        <div className="relative aspect-[3/4] max-w-sm mx-auto rounded-lg overflow-hidden border border-border bg-muted/20 flex items-center justify-center">
+                          <div className="text-center space-y-4">
+                            <div className="size-12 border-2 border-chart-4 border-t-transparent rounded-full animate-spin mx-auto" />
+                            <p className="text-sm text-muted-foreground">
+                              Creating try-on...
+                            </p>
                           </div>
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="text-center space-y-2">
-                              <Shirt className="size-8 text-muted-foreground mx-auto" />
-                              <p className="text-sm text-muted-foreground">
-                                Try-on result will appear here
-                              </p>
+                        </div>
+                      ) : resultImages.length > 0 ? (
+                        <div className="grid gap-4 md:grid-cols-2">
+                          {resultImages.map((url, index) => (
+                            <div
+                              key={`${url}-${index}`}
+                              className="relative aspect-[3/4] rounded-lg overflow-hidden border border-border bg-muted/20"
+                            >
+                              <img
+                                src={url}
+                                alt={`Try-on result ${index + 1}`}
+                                className="absolute inset-0 h-full w-full object-cover"
+                              />
                             </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="relative aspect-[3/4] max-w-sm mx-auto rounded-lg overflow-hidden border border-border bg-muted/20 flex items-center justify-center">
+                          <div className="text-center space-y-2">
+                            <Shirt className="size-8 text-muted-foreground mx-auto" />
+                            <p className="text-sm text-muted-foreground">
+                              Try-on result will appear here
+                            </p>
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </TabsContent>
                   </Tabs>
                 ) : (
@@ -335,37 +391,56 @@ export default function TryOnPage() {
           </div>
         </div>
 
-        {/* Try-On Gallery */}
+        {/* Try-On Results */}
         <div className="mt-8">
-          <h3 className="text-lg font-semibold mb-4">Try-On Gallery</h3>
-          <div className="grid md:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map((i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: i * 0.1 }}
-              >
-                <Card className="border-border/50 hover:border-chart-4/50 transition-colors cursor-pointer group">
-                  <CardContent className="p-4">
-                    <div className="aspect-[3/4] rounded-lg bg-gradient-to-br from-chart-4/10 to-primary/10 mb-3 flex items-center justify-center">
-                      <Shirt className="size-8 text-muted-foreground group-hover:text-chart-4 transition-colors" />
-                    </div>
-                    <h4 className="font-medium mb-1">Try-On {i}</h4>
-                    <p className="text-xs text-muted-foreground mb-2">Model A • Blue Dress</p>
-                    <div className="flex gap-1">
-                      <Button size="sm" variant="ghost" className="size-8 p-0">
-                        <Eye className="size-3" />
-                      </Button>
-                      <Button size="sm" variant="ghost" className="size-8 p-0">
-                        <Download className="size-3" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
+          <h3 className="text-lg font-semibold mb-4">Try-On Results</h3>
+          {resultImages.length > 0 ? (
+            <div className="grid md:grid-cols-4 gap-4">
+              {resultImages.map((url, index) => (
+                <motion.div
+                  key={`${url}-${index}`}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: index * 0.05 }}
+                >
+                  <Card className="border-border/50 hover:border-chart-4/50 transition-colors">
+                    <CardContent className="p-4 space-y-3">
+                      <div className="relative aspect-[3/4] rounded-lg overflow-hidden border border-border bg-muted/20">
+                        <img src={url} alt={`Try-on result ${index + 1}`} className="absolute inset-0 h-full w-full object-cover" />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-medium">Result {index + 1}</h4>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="size-8 p-0"
+                            onClick={() => handleViewResult(url)}
+                            aria-label={`View try-on result ${index + 1}`}
+                          >
+                            <Eye className="size-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="size-8 p-0"
+                            onClick={() => handleDownloadResult(url)}
+                            aria-label={`Download try-on result ${index + 1}`}
+                          >
+                            <Download className="size-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground">
+              Upload a model and garment image to generate try-on results.
+            </div>
+          )}
         </div>
       </div>
     </div>
