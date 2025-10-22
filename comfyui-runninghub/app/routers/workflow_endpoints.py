@@ -21,6 +21,13 @@ try:
         workflow_manager.workflows["complete_pattern_extract"] = (
             CompletePatternExtractWorkflow()
         )
+    from workflows.complete_video_generation_workflow import (
+        CompleteVideoGenerationWorkflow,
+    )
+    if "complete_video_generation" not in workflow_manager.workflows:
+        workflow_manager.workflows["complete_video_generation"] = (
+            CompleteVideoGenerationWorkflow()
+        )
 except Exception:
     # 静默忽略，端点内还有一次兜底注册
     pass
@@ -197,6 +204,50 @@ async def complete_pattern_extract(
     except Exception as e:
         logger.error(f"完整印花提取工作流执行失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"印花提取失败: {str(e)}")
+
+@router.post("/complete_video_generation")
+async def complete_video_generation(
+    file: UploadFile = File(...),
+    prompt: str = Form(...),
+    fileType: str = Form(default="image"),
+    client = Depends(get_runninghub_client),
+    task_manager = Depends(get_task_manager),
+):
+    """
+    完整视频生成工作流端点：接收图片文件和提示词并创建视频生成任务
+    """
+    logger = get_router_logger()
+    try:
+        logger.info(f"收到完整视频生成请求: 文件={file.filename}, 类型={fileType}, 提示词={prompt}")
+
+        # 确保工作流已注册（容错：动态加载失败时，尝试显式注册）
+        try:
+            workflow = workflow_manager.get_workflow("complete_video_generation")
+        except Exception:
+            try:
+                from workflows.complete_video_generation_workflow import (
+                    CompleteVideoGenerationWorkflow,
+                )
+                wf = CompleteVideoGenerationWorkflow()
+                workflow_manager.workflows[wf.name] = wf
+                logger.info("已显式注册工作流 complete_video_generation")
+                workflow = wf
+            except Exception as reg_e:
+                logger.error(f"显式注册工作流失败: {reg_e}")
+                raise
+
+        result = await workflow.execute_workflow(
+            file=file,
+            prompt=prompt,
+            fileType=fileType,
+        )
+
+        logger.info(f"完整视频生成工作流执行成功: {result}")
+        return result
+
+    except Exception as e:
+        logger.error(f"完整视频生成工作流执行失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"视频生成失败: {str(e)}")
 
 @router.post("/variant_overlay")
 async def variant_overlay(
