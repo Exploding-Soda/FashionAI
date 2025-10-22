@@ -366,15 +366,13 @@ export default function VideoGenerationPage() {
                     </TabsContent>
 
                     <TabsContent value="result" className="mt-6">
-                      <div className="relative aspect-[3/4] max-w-sm mx-auto rounded-lg overflow-hidden border border-border bg-muted/20">
+                      <div className="relative aspect-[3/4] max-w-sm mx-auto rounded-lg border border-border bg-muted/20 flex items-center justify-center overflow-hidden">
                         {isProcessing ? (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="text-center space-y-4">
-                              <div className="size-12 border-2 border-chart-4 border-t-transparent rounded-full animate-spin mx-auto" />
-                              <p className="text-sm text-muted-foreground">
-                                Generating video...
-                              </p>
-                            </div>
+                          <div className="text-center space-y-4">
+                            <div className="size-12 border-2 border-chart-4 border-t-transparent rounded-full animate-spin mx-auto" />
+                            <p className="text-sm text-muted-foreground">
+                              Generating video...
+                            </p>
                           </div>
                         ) : generatedOutput ? (
                           isGeneratedVideo ? (
@@ -383,7 +381,7 @@ export default function VideoGenerationPage() {
                               src={generatedOutput}
                               controls
                               loop={loopVideo}
-                              className="h-full w-full object-cover"
+                              className="h-full w-full object-contain bg-black"
                             />
                           ) : (
                             <img
