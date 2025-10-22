@@ -7,7 +7,6 @@ import { motion } from "framer-motion"
 import {
   Download,
   Shirt,
-  RotateCcw,
   Settings,
   Zap,
   ImageIcon,
@@ -15,20 +14,15 @@ import {
   ArrowRight,
   CheckCircle,
   Clock,
-  AlertCircle,
   Eye,
   Camera,
-  Shuffle,
   User,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Slider } from "@/components/ui/slider"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
 import { CollapsibleHeader } from "@/components/collapsible-header"
 import Image from "next/image"
 
@@ -210,27 +204,7 @@ export default function TryOnPage() {
                     Try-On Settings
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">Realistic Shadows</Label>
-                    <Switch defaultChecked />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">Fabric Physics</Label>
-                    <Switch defaultChecked />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Fit Adjustment</Label>
-                    <Slider defaultValue={[50]} max={100} step={1} className="w-full" />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Lighting Match</Label>
-                    <Slider defaultValue={[80]} max={100} step={1} className="w-full" />
-                  </div>
-
+                <CardContent>
                   <Button onClick={handleTryOn} disabled={isProcessing} className="w-full gap-2">
                     {isProcessing ? (
                       <>
@@ -276,33 +250,15 @@ export default function TryOnPage() {
                     <ImageIcon className="size-5" />
                     Try-On Preview
                   </CardTitle>
-                  {modelImages.length > 0 && garmentImage && (
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        <Shuffle className="size-4" />
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <Eye className="size-4" />
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <RotateCcw className="size-4" />
-                      </Button>
-                      <Button size="sm" className="gap-2">
-                        <Download className="size-4" />
-                        Export
-                      </Button>
-                    </div>
-                  )}
                 </div>
               </CardHeader>
               <CardContent className="flex-1">
                 {modelImages.length > 0 && garmentImage ? (
                   <Tabs defaultValue="result" className="w-full">
-                    <TabsList className="grid w-full grid-cols-4">
+                    <TabsList className="grid w-full grid-cols-3">
                       <TabsTrigger value="model">Model</TabsTrigger>
                       <TabsTrigger value="garment">Garment</TabsTrigger>
                       <TabsTrigger value="result">Result</TabsTrigger>
-                      <TabsTrigger value="comparison">Compare</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="model" className="mt-6">
@@ -348,31 +304,6 @@ export default function TryOnPage() {
                             </div>
                           </div>
                         )}
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent value="comparison" className="mt-6">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <p className="text-sm font-medium text-center">Before</p>
-                          <div className="relative aspect-[3/4] rounded-lg overflow-hidden border border-border">
-                            <Image
-                              src={modelImages[0] || "/placeholder.svg"}
-                              alt="Before"
-                              fill
-                              className="object-cover"
-                            />
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <p className="text-sm font-medium text-center">After</p>
-                          <div className="relative aspect-[3/4] rounded-lg overflow-hidden border border-border bg-muted/20 flex items-center justify-center">
-                            <div className="text-center space-y-2">
-                              <AlertCircle className="size-6 text-muted-foreground mx-auto" />
-                              <p className="text-xs text-muted-foreground">After try-on</p>
-                            </div>
-                          </div>
-                        </div>
                       </div>
                     </TabsContent>
                   </Tabs>
