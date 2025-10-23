@@ -1,4 +1,5 @@
 from typing import Any, Optional
+import json
 import httpx
 from fastapi import UploadFile
 from .config import get_settings
@@ -50,6 +51,11 @@ class RunninghubClient:
         
         self.logger.debug(f"发送请求到: {url}")
         self.logger.debug(f"请求数据: {payload}")
+        try:
+            request_body = json.dumps(payload, ensure_ascii=False)
+        except (TypeError, ValueError):
+            request_body = str(payload)
+        self.logger.info(f"RunningHub create_task 请求体: {request_body}")
         
         resp = await self._client.post(url, json=payload)
         self.logger.debug(f"响应状态: {resp.status_code}")
@@ -108,5 +114,4 @@ class RunninghubClient:
 def get_runninghub_client():
     s = get_settings()
     return RunninghubClient(base_url=s.runninghub_host, api_key=s.runninghub_api_key, timeout_seconds=s.request_timeout_seconds)
-
 
