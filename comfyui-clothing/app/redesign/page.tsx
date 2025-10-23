@@ -315,25 +315,28 @@ export default function RedesignPage() {
 
   // 生成最终的prompt
   const generateFinalPrompt = () => {
-    const prompts = imageData.map((img, index) => {
-      if (img.prompt.trim()) {
-        return `图${index + 1}：${img.prompt.trim()}`
-      } else {
-        return `Ignore image ${index + 1}`
-      }
-    })
-    
-    // 确保有4个prompt（即使没有图片）
-    while (prompts.length < 4) {
-      prompts.push(`Ignore image ${prompts.length + 1}`)
-    }
-    
-    return `参考：
-${prompts[0]}
-${prompts[1]}
-${prompts[2]}
-${prompts[3]}
-不要对服装做出任何修改
+    const prompts = imageData
+      .map((img, index) => {
+        if (img.prompt.trim()) {
+          return `图${index + 1}：${img.prompt.trim()}`
+        } else {
+          // return `Ignore image ${index + 1}`
+          return ""
+        }
+      })
+      .filter((line) => line !== "")
+
+    // while (prompts.length < 4) {
+    //   prompts.push(`Ignore image ${prompts.length + 1}`)
+    // }
+
+    const referenceSection = prompts.length
+      ? `参考：
+${prompts.join("\n")}
+`
+      : ""
+
+    return `${referenceSection}不要对服装做出任何修改
 `
   }
 
