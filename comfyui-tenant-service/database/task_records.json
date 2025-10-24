@@ -1903,5 +1903,36 @@
       }
     ],
     "error_message": null
+  },
+  {
+    "id": 75,
+    "tenant_task_id": "tenant_d2f82b35afb540fb",
+    "user_id": "eason",
+    "runninghub_task_id": "1981606568263294978",
+    "task_type": "targeted_redesign",
+    "status": "SUCCESS",
+    "created_at": "2025-10-24T06:19:57.770212",
+    "completed_at": "2025-10-24T06:20:27.542194",
+    "result_data": {
+      "taskId": "1981606568263294978",
+      "outputs": [
+        {
+          "fileUrl": "https://rh-images.xiaoyaoyou.com/aa517de7c7a8f5d89f94e43113985931/output/ComfyUI_00001_ukzhx_1761286818.png",
+          "fileType": "png",
+          "taskCostTime": "23",
+          "nodeId": "32",
+          "thirdPartyConsumeMoney": "0.050",
+          "consumeMoney": "0.026",
+          "consumeCoins": null
+        }
+      ]
+    },
+    "storage_paths": [
+      {
+        "original": "output\\eason\\20251024_142026.png",
+        "thumbnail": "output\\eason\\thumbnail\\20251024_142026.png"
+      }
+    ],
+    "error_message": null
   }
 ]

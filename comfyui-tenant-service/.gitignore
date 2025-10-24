@@ -108,3 +108,4 @@ dmypy.json
 *.bat
 output/
 database/
+database

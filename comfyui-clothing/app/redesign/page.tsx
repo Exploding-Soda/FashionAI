@@ -385,17 +385,28 @@ export default function RedesignPage() {
 
   // 为特定图片合并canvas内容
   const mergeCanvasForImage = async (imgData: any): Promise<File> => {
-    // 创建临时canvas来合并特定图片的内容
-    const tempCanvas = document.createElement('canvas')
-    const tempOverlayCanvas = document.createElement('canvas')
-    const tempCtx = tempCanvas.getContext('2d')
-    const tempOverlayCtx = tempOverlayCanvas.getContext('2d')
-    
-    if (!tempCtx || !tempOverlayCtx) {
-      throw new Error("Failed to create temporary canvas context")
+    if (!imgData?.file) {
+      throw new Error("Image data is missing file reference")
     }
 
-    // 加载图片
+    const hasOverlay =
+      imgData.hasDrawings &&
+      Array.isArray(imgData.history) &&
+      imgData.history.length > 0 &&
+      typeof imgData.historyIndex === 'number' &&
+      imgData.historyIndex >= 0
+
+    // 没有绘制内容时直接返回原始文件，保持原始分辨率
+    if (!hasOverlay || imgData.historyIndex === 0) {
+      return imgData.file
+    }
+
+    const historyData = imgData.history[imgData.historyIndex]
+    if (!historyData) {
+      return imgData.file
+    }
+
+    // 加载原始图片
     const img = new Image()
     await new Promise((resolve, reject) => {
       img.onload = resolve
@@ -403,50 +414,70 @@ export default function RedesignPage() {
       img.src = imgData.image
     })
 
-    // 设置canvas尺寸
-    const displayWidth = 800 // 固定尺寸用于处理
-    const displayHeight = 600
-    tempCanvas.width = displayWidth
-    tempCanvas.height = displayHeight
-    tempOverlayCanvas.width = displayWidth
-    tempOverlayCanvas.height = displayHeight
+    const sourceWidth = img.naturalWidth || img.width
+    const sourceHeight = img.naturalHeight || img.height
 
-    // 绘制原图
-    tempCtx.drawImage(img, 0, 0, displayWidth, displayHeight)
-    
-    // 绘制覆盖层（如果有绘制内容）
-    if (imgData.history && imgData.history.length > 0 && imgData.historyIndex >= 0) {
-      const historyData = imgData.history[imgData.historyIndex]
-      tempOverlayCtx.putImageData(historyData, 0, 0)
+    if (!sourceWidth || !sourceHeight) {
+      throw new Error("Failed to determine image size")
     }
 
-    // 合并两个canvas
     const mergedCanvas = document.createElement('canvas')
+    mergedCanvas.width = sourceWidth
+    mergedCanvas.height = sourceHeight
+
     const mergedCtx = mergedCanvas.getContext('2d')
-    if (!mergedCtx) throw new Error("Failed to get merged canvas context")
+    if (!mergedCtx) {
+      throw new Error("Failed to get merged canvas context")
+    }
 
-    mergedCanvas.width = displayWidth
-    mergedCanvas.height = displayHeight
+    // 绘制原图，保持原始分辨率
+    mergedCtx.drawImage(img, 0, 0, sourceWidth, sourceHeight)
 
-    // 先绘制原图
-    mergedCtx.drawImage(tempCanvas, 0, 0)
-    // 再绘制覆盖层
-    mergedCtx.drawImage(tempOverlayCanvas, 0, 0)
+    // 将历史绘制内容贴到一个临时画布，再按比例绘制到最终画布
+    if (historyData.width && historyData.height) {
+      const overlayCanvas = document.createElement('canvas')
+      overlayCanvas.width = historyData.width
+      overlayCanvas.height = historyData.height
 
-    // 转换为Blob
+      const overlayCtx = overlayCanvas.getContext('2d')
+      if (!overlayCtx) {
+        throw new Error("Failed to get overlay canvas context")
+      }
+
+      try {
+        overlayCtx.putImageData(historyData, 0, 0)
+        mergedCtx.drawImage(
+          overlayCanvas,
+          0,
+          0,
+          overlayCanvas.width,
+          overlayCanvas.height,
+          0,
+          0,
+          sourceWidth,
+          sourceHeight
+        )
+      } catch (error) {
+        console.warn('Failed to merge overlay canvas, using original file:', error)
+        return imgData.file
+      }
+    }
+
+    const outputType = imgData.file.type || 'image/png'
+
     return new Promise((resolve, reject) => {
       mergedCanvas.toBlob((blob) => {
         if (!blob) {
           reject(new Error("Failed to create blob from canvas"))
           return
         }
-        
+
         const mergedFile = new File([blob], imgData.file.name, {
-          type: imgData.file.type,
+          type: outputType,
           lastModified: Date.now()
         })
         resolve(mergedFile)
-      }, imgData.file.type, 0.9)
+      }, outputType, 0.9)
     })
   }
 
