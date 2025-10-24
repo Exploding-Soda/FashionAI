@@ -2,7 +2,9 @@
 完整的图片编辑工作流
 整合文件上传和图片编辑功能
 """
+from pathlib import Path
 from typing import Dict, Any, List, Optional
+import uuid
 from pydantic import BaseModel
 from fastapi import UploadFile
 from .workflow_manager import Workflow
@@ -73,6 +75,25 @@ class CompleteImageEditWorkflow(Workflow):
     @property
     def input_model(self):
         return CompleteImageEditInput
+
+    async def _persist_upload_file(self, upload_file: UploadFile, description: str) -> bytes:
+        """将上传的文件保存到本地 input/upload 目录并返回文件内容"""
+        upload_dir = Path(__file__).resolve().parents[1] / "input" / "upload"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        await upload_file.seek(0)
+        file_bytes = await upload_file.read()
+
+        original_name = upload_file.filename
+        safe_name = Path(original_name).name if original_name else f"{uuid.uuid4().hex}.bin"
+        destination = upload_dir / safe_name
+
+        with destination.open("wb") as f:
+            f.write(file_bytes)
+
+        await upload_file.seek(0)
+        self.logger.info(f"{description} 已保存到本地: {destination}")
+        return file_bytes
     
     async def execute_workflow(self, file: UploadFile, fileType: str = "image", prompt: str = "", file_2: Optional[UploadFile] = None, file_3: Optional[UploadFile] = None, file_4: Optional[UploadFile] = None, **kwargs) -> Dict[str, Any]:
         """
@@ -95,25 +116,29 @@ class CompleteImageEditWorkflow(Workflow):
             
             # 上传第一张图片
             self.logger.info(f"开始上传第一张图片: {file.filename}")
-            image_name = await self.client.upload_file(file=file, file_type=fileType)
+            image_1_bytes = await self._persist_upload_file(file, "第一张图片")
+            image_name = await self.client.upload_file(file=file, file_type=fileType, file_bytes=image_1_bytes)
             image_names['image_1'] = self._process_upload_result(image_name, "第一张图片")
             
             # 上传第二张图片（如果提供）
             if file_2:
                 self.logger.info(f"开始上传第二张图片: {file_2.filename}")
-                image_2_name = await self.client.upload_file(file=file_2, file_type=fileType)
+                image_2_bytes = await self._persist_upload_file(file_2, "第二张图片")
+                image_2_name = await self.client.upload_file(file=file_2, file_type=fileType, file_bytes=image_2_bytes)
                 image_names['image_2'] = self._process_upload_result(image_2_name, "第二张图片")
             
             # 上传第三张图片（如果提供）
             if file_3:
                 self.logger.info(f"开始上传第三张图片: {file_3.filename}")
-                image_3_name = await self.client.upload_file(file=file_3, file_type=fileType)
+                image_3_bytes = await self._persist_upload_file(file_3, "第三张图片")
+                image_3_name = await self.client.upload_file(file=file_3, file_type=fileType, file_bytes=image_3_bytes)
                 image_names['image_3'] = self._process_upload_result(image_3_name, "第三张图片")
             
             # 上传第四张图片（如果提供）
             if file_4:
                 self.logger.info(f"开始上传第四张图片: {file_4.filename}")
-                image_4_name = await self.client.upload_file(file=file_4, file_type=fileType)
+                image_4_bytes = await self._persist_upload_file(file_4, "第四张图片")
+                image_4_name = await self.client.upload_file(file=file_4, file_type=fileType, file_bytes=image_4_bytes)
                 image_names['image_4'] = self._process_upload_result(image_4_name, "第四张图片")
             
             # 第二步：执行图片编辑

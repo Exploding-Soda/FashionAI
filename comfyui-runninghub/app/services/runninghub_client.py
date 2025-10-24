@@ -14,12 +14,14 @@ class RunninghubClient:
         self._client = httpx.AsyncClient(timeout=self.timeout)
         self.logger = get_runninghub_logger()
 
-    async def upload_file(self, file: UploadFile, file_type: str) -> str:
+    async def upload_file(self, file: UploadFile, file_type: str, file_bytes: Optional[bytes] = None) -> str:
         url = f"{self.base_url}/task/openapi/upload"
+        if file_bytes is None:
+            file_bytes = await file.read()
         form = {
             "apiKey": (None, self.api_key),
             "fileType": (None, file_type),
-            "file": (file.filename, await file.read(), file.content_type or "application/octet-stream"),
+            "file": (file.filename, file_bytes, file.content_type or "application/octet-stream"),
         }
         resp = await self._client.post(url, files=form)
         resp.raise_for_status()
@@ -114,4 +116,3 @@ class RunninghubClient:
 def get_runninghub_client():
     s = get_settings()
     return RunninghubClient(base_url=s.runninghub_host, api_key=s.runninghub_api_key, timeout_seconds=s.request_timeout_seconds)
-
