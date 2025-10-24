@@ -10,6 +10,8 @@ from app.services.runninghub_client import RunninghubClient
 from app.services.config import get_settings
 from app.services.logger import get_runninghub_logger
 
+DEFAULT_IMAGE_PLACEHOLDER = "f23d534950c05bb974fbf23485108c17fa8446b66dd19b6b2f482d68441335b2.png"
+
 
 class CompleteImageEditInput(BaseModel):
     """完整图片编辑工作流输入参数"""
@@ -204,14 +206,22 @@ class CompleteImageEditWorkflow(Workflow):
         if not prompt.strip():
             raise ValueError("编辑提示词不能为空")
         
-        # 确保 image_name 是字符串
-        if isinstance(image_name, dict):
-            image_name = str(image_name)
-        elif not isinstance(image_name, str):
-            image_name = str(image_name)
+        def normalize_image_value(value: Any, allow_empty: bool = False) -> str:
+            if isinstance(value, dict):
+                value = str(value)
+            elif not isinstance(value, str):
+                value = str(value)
+            normalized = value.strip()
+            if not normalized:
+                if allow_empty:
+                    return DEFAULT_IMAGE_PLACEHOLDER
+                raise ValueError("第一张图片名称不能为空")
+            return normalized
         
-        if not image_name.strip():
-            raise ValueError("第一张图片名称不能为空")
+        image_name = normalize_image_value(image_name, allow_empty=False)
+        image_2 = normalize_image_value(image_2, allow_empty=True)
+        image_3 = normalize_image_value(image_3, allow_empty=True)
+        image_4 = normalize_image_value(image_4, allow_empty=True)
         
         node_info_list = [
             {
@@ -221,37 +231,30 @@ class CompleteImageEditWorkflow(Workflow):
                 "description": "image"
             },
             {
+                "nodeId": "53",
+                "fieldName": "image",
+                "fieldValue": image_2,
+                "description": "image"
+            },
+            {
+                "nodeId": "51",
+                "fieldName": "image",
+                "fieldValue": image_3,
+                "description": "image"
+            },
+            {
+                "nodeId": "52",
+                "fieldName": "image",
+                "fieldValue": image_4,
+                "description": "image"
+            },
+            {
                 "nodeId": "46",
                 "fieldName": "text",
                 "fieldValue": prompt,
                 "description": "text"
             }
         ]
-        
-        # 添加额外的图片节点（如果提供了图片名称）
-        if image_2.strip():
-            node_info_list.append({
-                "nodeId": "53",
-                "fieldName": "image",
-                "fieldValue": image_2,
-                "description": "image"
-            })
-        
-        if image_3.strip():
-            node_info_list.append({
-                "nodeId": "51",
-                "fieldName": "image",
-                "fieldValue": image_3,
-                "description": "image"
-            })
-        
-        if image_4.strip():
-            node_info_list.append({
-                "nodeId": "52",
-                "fieldName": "image",
-                "fieldValue": image_4,
-                "description": "image"
-            })
         
         return node_info_list
 

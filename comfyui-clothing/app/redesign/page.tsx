@@ -318,7 +318,8 @@ export default function RedesignPage() {
     const prompts = imageData
       .map((img, index) => {
         if (img.prompt.trim()) {
-          return `图${index + 1}：${img.prompt.trim()}`
+          // return `图${index + 1}：${img.prompt.trim()}`
+          return `${img.prompt.trim()}`
         } else {
           // return `Ignore image ${index + 1}`
           return ""
@@ -331,12 +332,11 @@ export default function RedesignPage() {
     // }
 
     const referenceSection = prompts.length
-      ? `参考：
-${prompts.join("\n")}
+      ? `${prompts.join("\n")}
 `
       : ""
 
-    return `${referenceSection}不要对服装做出任何修改
+    return `${referenceSection}
 `
   }
 
@@ -555,8 +555,12 @@ ${prompts.join("\n")}
       const ctx = overlayCanvas.getContext('2d')
       if (!ctx) return
       
-      setHistoryIndex(historyIndex - 1)
-      ctx.putImageData(history[historyIndex - 1], 0, 0)
+      const newIndex = historyIndex - 1
+      setHistoryIndex(newIndex)
+      ctx.putImageData(history[newIndex], 0, 0)
+      const hasDrawingsNow = newIndex > 0
+      setHasDrawings(hasDrawingsNow)
+      updateCurrentImageDrawings(hasDrawingsNow, history, newIndex)
     }
   }
 
@@ -568,8 +572,12 @@ ${prompts.join("\n")}
       const ctx = overlayCanvas.getContext('2d')
       if (!ctx) return
       
-      setHistoryIndex(historyIndex + 1)
-      ctx.putImageData(history[historyIndex + 1], 0, 0)
+      const newIndex = historyIndex + 1
+      setHistoryIndex(newIndex)
+      ctx.putImageData(history[newIndex], 0, 0)
+      const hasDrawingsNow = newIndex > 0
+      setHasDrawings(hasDrawingsNow)
+      updateCurrentImageDrawings(hasDrawingsNow, history, newIndex)
     }
   }
 
@@ -687,9 +695,14 @@ ${prompts.join("\n")}
   const stopDrawing = () => {
     setIsDrawing(false)
     // 绘制完成后保存历史状态
-    saveToHistory()
-    // 更新当前图片的绘制状态
-    updateCurrentImageDrawings(true, history, historyIndex)
+    const result = saveToHistory()
+    if (result) {
+      const { history: updatedHistory, index: updatedIndex } = result
+      const hasDrawingsNow = updatedIndex > 0
+      setHasDrawings(hasDrawingsNow)
+      // 更新当前图片的绘制状态
+      updateCurrentImageDrawings(hasDrawingsNow, updatedHistory, updatedIndex)
+    }
   }
 
   // 处理鼠标移动，更新画笔预览位置
@@ -717,18 +730,20 @@ ${prompts.join("\n")}
     return false
   }
 
-  const saveToHistory = () => {
+  const saveToHistory = (): { history: ImageData[]; index: number } | null => {
     const overlayCanvas = overlayCanvasRef.current
-    if (!overlayCanvas) return
+    if (!overlayCanvas) return null
     
     const ctx = overlayCanvas.getContext('2d')
-    if (!ctx) return
+    if (!ctx) return null
     
     const imageData = ctx.getImageData(0, 0, overlayCanvas.width, overlayCanvas.height)
     const newHistory = history.slice(0, historyIndex + 1)
     newHistory.push(imageData)
+    const newIndex = newHistory.length - 1
     setHistory(newHistory)
-    setHistoryIndex(newHistory.length - 1)
+    setHistoryIndex(newIndex)
+    return { history: newHistory, index: newIndex }
   }
 
   // 当切换到Original标签页时，重新初始化Canvas
@@ -824,26 +839,26 @@ ${prompts.join("\n")}
       const ctx = canvas.getContext('2d')
       const overlayCtx = overlayCanvas.getContext('2d')
       if (!ctx || !overlayCtx) return
-      
+
       const img = new Image()
       img.onload = () => {
         // 保存原始图片引用
         originalImageRef.current = img
-        
+
         // 获取容器的实际尺寸
         const container = canvas.parentElement
         if (!container) return
-        
+
         const containerRect = container.getBoundingClientRect()
         const containerWidth = containerRect.width
         const containerHeight = containerRect.height
-        
+
         // 计算图片适应画板区域的缩放比例，保持宽高比
         const imageAspectRatio = img.width / img.height
         const containerAspectRatio = containerWidth / containerHeight
-        
+
         let displayWidth, displayHeight
-        
+
         if (imageAspectRatio > containerAspectRatio) {
           // 图片更宽，以宽度为准
           displayWidth = containerWidth
@@ -853,30 +868,54 @@ ${prompts.join("\n")}
           displayHeight = containerHeight
           displayWidth = containerHeight * imageAspectRatio
         }
-        
+
         // 设置两个Canvas的显示尺寸
         canvas.style.width = `${displayWidth}px`
         canvas.style.height = `${displayHeight}px`
         overlayCanvas.style.width = `${displayWidth}px`
         overlayCanvas.style.height = `${displayHeight}px`
-        
+
         // 设置Canvas的实际像素尺寸（用于绘制）
         const dpr = window.devicePixelRatio || 1
         canvas.width = displayWidth * dpr
         canvas.height = displayHeight * dpr
         overlayCanvas.width = displayWidth * dpr
         overlayCanvas.height = displayHeight * dpr
-        
+
         // 缩放上下文以匹配设备像素比
         ctx.scale(dpr, dpr)
         overlayCtx.scale(dpr, dpr)
-        
+
         // 只在底层Canvas绘制原始图片
         ctx.drawImage(img, 0, 0, displayWidth, displayHeight)
-        
+
         // 清空覆盖层Canvas
         overlayCtx.clearRect(0, 0, displayWidth, displayHeight)
-        
+
+        const currentImageEntry = imageData[currentImageIndex]
+        const storedHistory = currentImageEntry?.history ?? []
+        const storedHistoryIndex = currentImageEntry?.historyIndex ?? -1
+        const storedHasDrawings = currentImageEntry?.hasDrawings ?? false
+
+        if (storedHistory.length > 0 && storedHistoryIndex >= 0) {
+          try {
+            overlayCtx.putImageData(storedHistory[storedHistoryIndex], 0, 0)
+          } catch (error) {
+            console.warn('Failed to restore drawing history:', error)
+          }
+          setHistory(storedHistory)
+          setHistoryIndex(storedHistoryIndex)
+          setHasDrawings(storedHasDrawings || storedHistoryIndex > 0)
+        } else {
+          const blankState = overlayCtx.getImageData(0, 0, overlayCanvas.width, overlayCanvas.height)
+          setHistory([blankState])
+          setHistoryIndex(0)
+          setHasDrawings(false)
+          if (currentImageEntry) {
+            updateCurrentImageDrawings(false, [blankState], 0)
+          }
+        }
+
         // 设置画笔默认样式
         overlayCtx.globalCompositeOperation = 'source-over'
         overlayCtx.strokeStyle = '#00ff00' // 纯绿色
@@ -885,15 +924,10 @@ ${prompts.join("\n")}
         overlayCtx.lineJoin = 'round'
         overlayCtx.shadowBlur = 0
         overlayCtx.shadowColor = 'transparent'
-        
-        // 保存初始状态到历史（只保存覆盖层）
-        const imageData = overlayCtx.getImageData(0, 0, overlayCanvas.width, overlayCanvas.height)
-        setHistory([imageData])
-        setHistoryIndex(0)
       }
       img.src = uploadedImage
     }
-  }, [uploadedImage])
+  }, [uploadedImage, currentImageIndex])
 
   const handleImageClick = (task: TaskHistoryItem) => {
     if (task.image_urls && task.image_urls.length > 0) {
